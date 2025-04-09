@@ -2,7 +2,10 @@ import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNati
 import codegenNativeCommands from 'react-native/Libraries/Utilities/codegenNativeCommands';
 import type { ViewProps } from 'react-native/Libraries/Components/View/ViewPropTypes';
 import type { HostComponent } from 'react-native';
-import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
+import type {
+  DirectEventHandler,
+  Int32,
+} from 'react-native/Libraries/Types/CodegenTypes';
 // Using codegenNativeComponent requires Flow syntax for event types,
 // or careful TypeScript configuration. Using basic types here for clarity,
 // but precise event payload typing might require Flow syntax within the interface.
@@ -14,40 +17,34 @@ import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTyp
 // These would be used when handling the events in your wrapper component,
 // not directly in the Codegen interface below in this basic example.
 interface UrlLoadEvent {
-  duration: number;
-  naturalSize?: { width: number; height: number };
+  duration: Int32;
+  naturalSize: { width: Int32; height: Int32 };
 }
 interface UrlProgressEvent {
-  currentTime: number;
-  duration: number;
+  currentTime: Int32;
+  duration: Int32;
 }
 interface WebRTCConnectedEvent {
-  connectionInfo?: string;
+  connectionInfo: string;
 }
 interface WebRTCDisconnectedEvent {
-  code?: number;
-  reason?: string;
+  code: Int32;
+  reason: string;
 }
 interface WebRTCStatsEvent {
-  stats: { [key: string]: any }; // Use specific type if known
+  stats: string; // Pass stats as JSON string
 }
 interface ErrorEvent {
   error: string;
-  code?: string | number;
+  code: string;
 }
 
-// --- Source Prop Interfaces (For reference) ---
-interface UrlSourceProps {
-  type: 'url';
+// --- Source Prop Types ---
+interface SourceProps {
+  type: string;
   uri: string;
-}
-interface WebRTCSourceProps {
-  type: 'webrtc';
   signalingUrl: string;
-  streamConfig?: object; // Use Codegen compatible types (Object/Readonly)
-  iceServers?: ReadonlyArray<{ urls: string | ReadonlyArray<string> }>;
 }
-type SourceProps = UrlSourceProps | WebRTCSourceProps;
 
 // --- Native Component Interface for Codegen ---
 // Note: Use Readonly<> for objects/arrays passed as props for Codegen.
@@ -56,21 +53,21 @@ type SourceProps = UrlSourceProps | WebRTCSourceProps;
 // Using simple event types here for demonstration.
 export interface NativeUnifiedVideoPlayerProps extends ViewProps {
   // Source prop (passed as a Readonly object)
-  source?: Readonly<SourceProps> | null; // Add null as a possible value
+  source: Readonly<SourceProps>;
 
   // Common Playback controls
-  paused?: boolean;
-  muted?: boolean;
-  volume?: number; // Float
+  paused: boolean;
+  muted: boolean;
+  volume: Int32;
 
   // Resize mode
-  resizeMode?: 'contain' | 'cover' | 'stretch';
+  resizeMode: string;
 
   // --- Native Event Callbacks ---
   // URL specific
-  onUrlLoad?: DirectEventHandler<Readonly<UrlLoadEvent>>; // Use Readonly<> for event objects
+  onUrlLoad?: DirectEventHandler<Readonly<UrlLoadEvent>>;
   onUrlProgress?: DirectEventHandler<Readonly<UrlProgressEvent>>;
-  onUrlEnd?: DirectEventHandler<Readonly<{}>>; // Empty object for events without payload
+  onUrlEnd?: DirectEventHandler<Readonly<{}>>;
   onUrlReadyForDisplay?: DirectEventHandler<Readonly<{}>>;
 
   // WebRTC specific
@@ -86,7 +83,11 @@ export interface NativeUnifiedVideoPlayerProps extends ViewProps {
 // This links the interface to the native component named "UnifiedNativeVideoPlayer"
 // The actual native implementation must register itself with this name.
 export default codegenNativeComponent<NativeUnifiedVideoPlayerProps>(
-  'YourUnifiedPlayerView'
+  'YourUnifiedPlayerView',
+  {
+    interfaceOnly: true,
+    paperComponentNameDeprecated: 'YourUnifiedPlayerView',
+  }
 ) as HostComponent<NativeUnifiedVideoPlayerProps>; // Cast for type safety
 
 // --- Native Commands Interface (If needed) ---
@@ -95,7 +96,7 @@ export interface UnifiedVideoPlayerNativeCommands {
   // Note: Command arguments need Codegen compatible types
   seekUrl: (
     viewRef: React.ElementRef<HostComponent<NativeUnifiedVideoPlayerProps>>,
-    timeSeconds: number
+    timeSeconds: Int32
   ) => void;
   sendWebRTCMessage: (
     viewRef: React.ElementRef<HostComponent<NativeUnifiedVideoPlayerProps>>,

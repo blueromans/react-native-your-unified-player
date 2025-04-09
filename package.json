@@ -37,7 +37,7 @@
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
-    "prepare": "bob build",
+    "prepare": "yarn clean && mkdir -p lib/module lib/typescript && tsc && node node_modules/react-native/scripts/generate-codegen-artifacts.js -p . -t ios -o ./ios/generated -s library && node node_modules/react-native/scripts/generate-codegen-artifacts.js -p . -t android -o ./android/generated -s library",
     "release": "release-it"
   },
   "keywords": [
@@ -151,7 +151,7 @@
   "codegenConfig": {
     "name": "RNYourUnifiedPlayerViewSpec",
     "type": "all",
-    "jsSrcsDir": "src",
+    "jsSrcsDir": "lib",
     "outputDir": {
       "ios": "ios/generated",
       "android": "android/generated"
@@ -166,7 +166,15 @@
     },
     "includesGeneratedCode": true,
     "defaultValues": {
-      "source": null
+      "source": {
+        "type": "url",
+        "uri": "",
+        "signalingUrl": ""
+      },
+      "resizeMode": "contain",
+      "paused": false,
+      "muted": false,
+      "volume": 1.0
     }
   },
   "create-react-native-library": {

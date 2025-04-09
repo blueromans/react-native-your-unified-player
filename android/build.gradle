@@ -36,11 +36,13 @@ def supportsNamespace() {
 }
 
 android {
-  namespace "com.yourunifiedplayer"
+  if (supportsNamespace()) {
+    namespace "com.yourunifiedplayer"
 
-  sourceSets {
-    main {
-      manifest.srcFile "src/main/AndroidManifest.xml"
+    sourceSets {
+      main {
+        manifest.srcFile "src/main/AndroidManifestNew.xml"
+      }
     }
   }
 
@@ -94,7 +96,7 @@ dependencies {
 }
 
 react {
-  jsRootDir = file("../lib/")
+  jsRootDir = file("../src/")
   libraryName = "YourUnifiedPlayerView"
   codegenJavaPackageName = "com.yourunifiedplayer"
 }

@@ -4,7 +4,26 @@ import { YourUnifiedPlayerView } from 'react-native-your-unified-player';
 export default function App() {
   return (
     <View style={styles.container}>
-      <YourUnifiedPlayerView color="#32a852" style={styles.box} />
+      <YourUnifiedPlayerView
+        source={{
+          type: 'url',
+          uri: 'https://example.com/sample.mp4',
+          signalingUrl: '',
+        }}
+        style={styles.player}
+        paused={false}
+        muted={false}
+        volume={1.0}
+        resizeMode="contain"
+        onUrlLoad={(event) => {
+          const { duration, naturalSize } = event.nativeEvent;
+          console.log('Video loaded:', duration, naturalSize);
+        }}
+        onError={(event) => {
+          const { error, code } = event.nativeEvent;
+          console.error('Player error:', error, code);
+        }}
+      />
     </View>
   );
 }
@@ -14,10 +33,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#F5FCFF',
   },
-  box: {
-    width: 60,
-    height: 60,
-    marginVertical: 20,
+  player: {
+    width: '100%',
+    height: 300,
+    backgroundColor: '#000',
   },
 });
