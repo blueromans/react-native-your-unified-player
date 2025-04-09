@@ -1,4 +1,5 @@
 import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNativeComponent';
+import codegenNativeCommands from 'react-native/Libraries/Utilities/codegenNativeCommands';
 import type { ViewProps } from 'react-native/Libraries/Components/View/ViewPropTypes';
 import type { HostComponent } from 'react-native';
 import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
@@ -14,7 +15,7 @@ import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTyp
 // not directly in the Codegen interface below in this basic example.
 interface UrlLoadEvent {
   duration: number;
-  naturalSize?: { width: number; height: number; };
+  naturalSize?: { width: number; height: number };
 }
 interface UrlProgressEvent {
   currentTime: number;
@@ -55,7 +56,7 @@ type SourceProps = UrlSourceProps | WebRTCSourceProps;
 // Using simple event types here for demonstration.
 export interface NativeUnifiedVideoPlayerProps extends ViewProps {
   // Source prop (passed as a Readonly object)
-  source?: Readonly<SourceProps>; // Use Readonly<> for objects
+  source?: Readonly<SourceProps> | null; // Add null as a possible value
 
   // Common Playback controls
   paused?: boolean;
@@ -85,19 +86,26 @@ export interface NativeUnifiedVideoPlayerProps extends ViewProps {
 // This links the interface to the native component named "UnifiedNativeVideoPlayer"
 // The actual native implementation must register itself with this name.
 export default codegenNativeComponent<NativeUnifiedVideoPlayerProps>(
-  'UnifiedNativeVideoPlayer',
+  'YourUnifiedPlayerView'
 ) as HostComponent<NativeUnifiedVideoPlayerProps>; // Cast for type safety
 
 // --- Native Commands Interface (If needed) ---
 // Define methods callable from JS/TS on the native component instance
 export interface UnifiedVideoPlayerNativeCommands {
   // Note: Command arguments need Codegen compatible types
-  seekUrl: (viewRef: React.ElementRef<HostComponent<NativeUnifiedVideoPlayerProps>>, timeSeconds: number) => void;
-  sendWebRTCMessage: (viewRef: React.ElementRef<HostComponent<NativeUnifiedVideoPlayerProps>>, message: string) => void;
+  seekUrl: (
+    viewRef: React.ElementRef<HostComponent<NativeUnifiedVideoPlayerProps>>,
+    timeSeconds: number
+  ) => void;
+  sendWebRTCMessage: (
+    viewRef: React.ElementRef<HostComponent<NativeUnifiedVideoPlayerProps>>,
+    message: string
+  ) => void;
   // Add other commands
 }
 
 // Codegen for commands (if you have commands)
-// export const Commands: UnifiedVideoPlayerNativeCommands = codegenNativeCommands<UnifiedVideoPlayerNativeCommands>({
-//   supportedCommands: ['seekUrl', 'sendWebRTCMessage'],
-// });
+export const Commands: UnifiedVideoPlayerNativeCommands =
+  codegenNativeCommands<UnifiedVideoPlayerNativeCommands>({
+    supportedCommands: ['seekUrl', 'sendWebRTCMessage'],
+  });

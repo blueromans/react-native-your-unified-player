@@ -10,6 +10,7 @@ buildscript {
 
   dependencies {
     classpath "com.android.tools.build:gradle:8.7.2"
+    
     // noinspection DifferentKotlinGradleVersion
     classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${getExtOrDefault('kotlinVersion')}"
   }
@@ -35,13 +36,11 @@ def supportsNamespace() {
 }
 
 android {
-  if (supportsNamespace()) {
-    namespace "com.yourunifiedplayer"
+  namespace "com.yourunifiedplayer"
 
-    sourceSets {
-      main {
-        manifest.srcFile "src/main/AndroidManifestNew.xml"
-      }
+  sourceSets {
+    main {
+      manifest.srcFile "src/main/AndroidManifest.xml"
     }
   }
 
@@ -91,10 +90,11 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+  implementation 'org.webrtc:google-webrtc:1.0.+'
 }
 
 react {
-  jsRootDir = file("../src/")
+  jsRootDir = file("../lib/")
   libraryName = "YourUnifiedPlayerView"
   codegenJavaPackageName = "com.yourunifiedplayer"
 }

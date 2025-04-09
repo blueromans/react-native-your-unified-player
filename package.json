@@ -164,7 +164,10 @@
         "YourUnifiedPlayerView": "YourUnifiedPlayerView"
       }
     },
-    "includesGeneratedCode": true
+    "includesGeneratedCode": true,
+    "defaultValues": {
+      "source": null
+    }
   },
   "create-react-native-library": {
     "languages": "kotlin-objc",
