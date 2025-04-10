@@ -34,7 +34,7 @@ Pod::Spec.new do |s|
 
   # === Add your specific iOS dependencies here ===
   # For WebRTC functionality, uncomment and use the correct library/version
-  # s.dependency 'GoogleWebRTC'
+  s.dependency 'GoogleWebRTC'
   # ==============================================
 
   # Required for Swift code
