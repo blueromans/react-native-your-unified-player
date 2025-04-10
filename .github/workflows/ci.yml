@@ -143,12 +143,20 @@ jobs:
           key: ${{ runner.os }}-cocoapods-${{ hashFiles('example/ios/Podfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-cocoapods-
+        
+      - name: Check Xcode version
+        run: xcodebuild -version
+        
+      - name: Clean Pods Cache
+        run: |
+          cd example/ios
+          rm -rf Pods Podfile.lock
 
       - name: Install cocoapods
         if: env.turbo_cache_hit != 1 && steps.cocoapods-cache.outputs.cache-hit != 'true'
         run: |
           cd example/ios
-          pod install
+          pod install --repo-update --verbose.
         env:
           NO_FLIPPER: 1
 
