@@ -39,14 +39,16 @@ Pod::Spec.new do |s|
 
   # --- Build Settings for Fabric/C++ ---
   s.header_dir = "cpp"
+  # Add React-Core/ReactCommon path for core C++ headers
   s.pod_target_xcconfig    = {
-    "HEADER_SEARCH_PATHS" => "\"$(PODS_ROOT)/boost\" \"$(PODS_ROOT)/Headers/Public/React-Codegen\"",
+    "HEADER_SEARCH_PATHS" => "\"$(PODS_ROOT)/boost\" \"$(PODS_ROOT)/Headers/Public/React-Codegen\" \"$(PODS_ROOT)/React-Core/ReactCommon\"", # <-- ADDED ReactCommon path
     "OTHER_CPLUSPLUSFLAGS" => "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1",
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++17"
   }
   s.compiler_flags = folly_compiler_flags
+  # Ensure React-Core/ReactCommon is also searchable here if needed, though above might suffice
   s.pod_target_xcconfig = {
-    'HEADER_SEARCH_PATHS' => '"$(PODS_ROOT)/boost" "$(PODS_ROOT)/RCT-Folly"',
+    'HEADER_SEARCH_PATHS' => '"$(PODS_ROOT)/boost" "$(PODS_ROOT)/RCT-Folly" "$(PODS_ROOT)/React-Core/ReactCommon"', # <-- ADDED ReactCommon path here too for safety
     'USE_HEADERMAP' => 'YES',
     'DEFINES_MODULE' => 'YES' # Important for Swift bridging header generation
   }
