@@ -29,17 +29,20 @@ target 'YourUnifiedPlayerExample' do
     # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/..",
 
-    # ---> ADDED: Explicitly enable Fabric <---
+    # ---> Ensure Fabric is enabled <---
     :fabric_enabled => true
 
   )
 
   # Add other pods needed by your example app here, if any
+  # pod 'YourUnifiedPlayer', :path => '../..' # Link your library
 
   # Run Codegen during development for the example app.
   # Ensure this runs correctly and generates files before build
   pre_install do |installer|
-    system("cd ../../ && npx bob build --target codegen")
+    # It's often better to run codegen via package.json script before pod install
+    # system("cd ../../ && npx bob build --target codegen")
+    # Or ensure generated files are checked into the repo if not run here
   end
 
   # Standard React Native post-install steps
@@ -49,16 +52,29 @@ target 'YourUnifiedPlayerExample' do
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
+
     # Fix for duplicate resource bundles in Xcode 15+ / RN 0.71+
     # https://github.com/facebook/react-native/issues/39100#issuecomment-1720838389
-    installer.pods_project.targets.each do |target|
-      if target.name == "React-Core"
-        target.bundle_resources_build_phase.files.each do |file|
-          if file.file_ref.path.end_with?("AccessibilityResources.bundle")
-             target.bundle_resources_build_phase.remove_file_reference(file.file_ref)
+    # --- UPDATED to use resources_build_phase ---
+    begin
+      installer.pods_project.targets.each do |target|
+        if target.name == "React-Core"
+          # Use resources_build_phase instead of bundle_resources_build_phase
+          phase = target.resources_build_phase
+          next unless phase
+
+          phase.files.each do |file|
+            if file.file_ref&.path&.end_with?("AccessibilityResources.bundle")
+               puts "Removing AccessibilityResources.bundle from React-Core resources phase"
+               phase.remove_file_reference(file.file_ref)
+            end
           end
         end
       end
+    rescue => e
+       Pod::UI.warn "Skipping duplicate bundle removal due to error: #{e.message}"
     end
+    # --- End of workaround ---
+
   end
 end
