@@ -156,7 +156,7 @@ jobs:
         if: env.turbo_cache_hit != 1 && steps.cocoapods-cache.outputs.cache-hit != 'true'
         run: |
           cd example/ios
-          pod install --repo-update --verbose.
+          pod install --repo-update --verbose
         env:
           NO_FLIPPER: 1
 
