@@ -1,63 +1,56 @@
 require "json"
 
-# Read package.json to get library version etc.
-package = JSON.parse(File.read(File.join(__dir__, "package.json")))
-# Define Folly flags (check compatibility with your RN version)
+package = JSON.parse(File.read(File.join(__dir__, "..", "package.json")))
+# Common Folly compiler flags
 folly_compiler_flags = '-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -Wno-comma -Wno-shorten-64-to-32'
-# Define Folly version (check compatibility with your RN version)
-folly_version = '2021.07.22.00' # Example, adjust as needed
+# Folly Version matching RN 0.79.0 requirement (from previous error log)
+folly_version = '2024.11.18.00'
 
 Pod::Spec.new do |s|
-  # Library definition
   s.name         = "YourUnifiedPlayer" # Refactored name
   s.version      = package["version"]
   s.summary      = package["description"]
   s.homepage     = package["homepage"]
   s.license      = package["license"]
   s.authors      = package["author"]
-  s.platforms    = { :ios => "13.0" } # Minimum iOS version for Fabric/modern RN
+  # --- Verify Minimum iOS Target ---
+  # Check React Native 0.79.0 documentation for the exact minimum required iOS version.
+  s.platforms    = { :ios => "13.4" }
   s.source       = { :git => "https://github.com/yourusername/react-native-your-unified-player.git", :tag => "#{s.version}" }
 
-  # Source files for the pod
   s.source_files = "ios/**/*.{h,m,mm,swift}", "cpp/**/*.{h,cpp}" # Include cpp files for Fabric
 
-  # React Native Dependencies (Fabric requires specific dependencies)
+  # React Native Dependencies for Fabric (Check compatibility with RN 0.79.0)
   s.dependency "React-Core"
-  s.dependency "React-Codegen" # Needed for Codegen support
-  s.dependency "RCT-Folly", folly_version # Folly library dependency
+  s.dependency "React-Codegen"
+  s.dependency "RCT-Folly", folly_version # Use folly_version variable matching RN 0.79.0
   s.dependency "RCTRequired"
   s.dependency "RCTTypeSafety"
-  s.dependency "ReactCommon/turbomodule/core" # Core TurboModule/Fabric infra
-  s.dependency "React-jsi" # JavaScript Interface dependency
+  s.dependency "ReactCommon/turbomodule/core"
+  s.dependency "React-jsi"
 
   # === Add your specific iOS dependencies here ===
-  # For WebRTC functionality, you MUST add a WebRTC library dependency.
-  # Example using Google's official pod (check for latest version/suitability):
+  # For WebRTC functionality, uncomment and use the correct library/version
   s.dependency 'GoogleWebRTC'
-  # Or point to a specific fork or local podspec if needed.
   # ==============================================
 
-  # Required for Swift code compilation within the pod
+  # Required for Swift code
   s.swift_version = '5.0' # Specify your Swift version
 
   # --- Build Settings for Fabric/C++ ---
-  # Expose C++ headers correctly
-  s.header_dir = "cpp" # Directory containing shared C++ headers
-  # Define C++ standard and flags
+  s.header_dir = "cpp"
   s.pod_target_xcconfig    = {
-    "HEADER_SEARCH_PATHS" => "\"$(PODS_ROOT)/boost\" \"$(PODS_ROOT)/Headers/Public/React-Codegen\"", # Add React-Codegen headers path
+    "HEADER_SEARCH_PATHS" => "\"$(PODS_ROOT)/boost\" \"$(PODS_ROOT)/Headers/Public/React-Codegen\"",
     "OTHER_CPLUSPLUSFLAGS" => "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1",
-    "CLANG_CXX_LANGUAGE_STANDARD" => "c++17" # Use C++17 for modern RN/Fabric
+    "CLANG_CXX_LANGUAGE_STANDARD" => "c++17"
   }
-  # Apply Folly compiler flags
   s.compiler_flags = folly_compiler_flags
-  # Additional pod target settings
   s.pod_target_xcconfig = {
     'HEADER_SEARCH_PATHS' => '"$(PODS_ROOT)/boost" "$(PODS_ROOT)/RCT-Folly"',
     'USE_HEADERMAP' => 'YES',
     'DEFINES_MODULE' => 'YES' # Important for Swift bridging header generation
   }
-  # Ensure the app target can find generated headers
-  s.user_target_xcconfig = { "HEADER_SEARCH_PATHS" => "\"$(PODS_TARGET_SRCROOT)/../build/generated/ios/react/renderer/components\"" } # Adjust path based on actual codegen output
+  # Adjust path based on actual codegen output location for your RN version
+  s.user_target_xcconfig = { "HEADER_SEARCH_PATHS" => "\"$(PODS_TARGET_SRCROOT)/../build/generated/ios/react/renderer/components\"" }
 
 end
