@@ -1,6 +1,6 @@
 require "json"
 
-package = JSON.parse(File.read(File.join(__dir__, "..", "package.json")))
+package = JSON.parse(File.read(File.join(__dir__,  "package.json")))
 # Common Folly compiler flags
 folly_compiler_flags = '-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -Wno-comma -Wno-shorten-64-to-32'
 # --- CORRECTED Folly Version based on pod install error log for RN 0.77.0 ---
