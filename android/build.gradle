@@ -1,77 +1,41 @@
-// buildscript block defines build-time dependencies for Gradle itself
-buildscript {
-  // Helper function to get extension properties from root project or defaults
-  ext.getExtOrDefault = { name ->
-    return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties['YourUnifiedPlayer_' + name] // Assuming properties are prefixed
-  }
+// build.gradle for the Android library module (react-native-your-unified-player/android/build.gradle)
 
-  repositories {
-    google()
-    mavenCentral()
-  }
-
-  dependencies {
-    // Define Android Gradle Plugin (AGP) version
-    // Ensure this version is compatible with your project/RN version
-    classpath "com.android.tools.build:gradle:8.1.0" // Example AGP version, align with your project
-
-    // Define Kotlin Gradle Plugin version using the helper
-    // Ensure 'kotlinVersion' is defined in your root project's build.gradle ext block
-    // noinspection DifferentKotlinGradleVersion
-    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${getExtOrDefault('kotlinVersion')}"
-  }
-}
-
-// Apply necessary plugins for an Android library using Kotlin and React Native
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
-// Apply React Native Gradle plugin (for RN 0.71+)
-apply plugin: "com.facebook.react"
+apply plugin: "com.facebook.react" // Apply React Native Gradle plugin
 
-/**
- * Helper function to get extension properties as Integer or default.
- */
-def getExtOrIntegerDefault(name) {
-  def value = rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["YourUnifiedPlayer_" + name]
-  return value != null ? value.toInteger() : 0 // Provide a sensible default or handle null
+// Helper function to get extension properties from root project or defaults
+def getExtOrDefault(name) {
+  return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["YourUnifiedPlayer_" + name]
 }
 
-/**
- * Checks if the current Android Gradle Plugin version supports the 'namespace' DSL.
- */
+// Helper function to get extension properties as Integer or default
+def getExtOrIntegerDefault(name) {
+  def value = rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["YourUnifiedPlayer_" + name]
+  return value != null ? value.toInteger() : 0
+}
+
+// Function to check namespace support
 def supportsNamespace() {
   def parsed = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize('.')
   def major = parsed[0].toInteger()
   def minor = parsed[1].toInteger()
-
-  // Namespace support was added in AGP 7.3.0
   return (major == 7 && minor >= 3) || major >= 8
 }
 
 android {
-  // Use namespace if supported by AGP version
   if (supportsNamespace()) {
-    namespace "com.yourunifiedplayer" // Use your library's package name
-
-    // Source sets configuration might be needed if namespace changes manifest path resolution
-    // sourceSets {
-    //   main {
-    //     manifest.srcFile "src/main/AndroidManifest.xml" // Ensure this path is correct
-    //   }
-    // }
+    namespace "com.yourunifiedplayer"
   }
 
-  // Set SDK versions using helper function
   compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
 
   defaultConfig {
     minSdkVersion getExtOrIntegerDefault("minSdkVersion")
     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
-    // Add build config field for New Architecture check if needed by package/manager
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", "true"
   }
 
-  // Enable BuildConfig generation
   buildFeatures {
     buildConfig true
   }
@@ -84,85 +48,56 @@ android {
 
   lintOptions {
     disable "GradleCompatible"
-    abortOnError false // Continue build even on lint errors
+    abortOnError false
   }
 
-  // Set Java compatibility options
   compileOptions {
     sourceCompatibility JavaVersion.VERSION_1_8
     targetCompatibility JavaVersion.VERSION_1_8
   }
 
-  // Set Kotlin JVM target
   kotlinOptions {
       jvmTarget = "1.8"
   }
 
-  // --- ADDED: Link C++ build using CMake ---
   externalNativeBuild {
       cmake {
-          // Path relative to this build.gradle file
           path "src/main/jni/CMakeLists.txt"
-          // Optional: Specify CMake version if needed
-          // version "3.18.1" // Example
       }
   }
-
-  // Source sets configuration for JNI/Generated code (might be handled by RN plugin)
-  // sourceSets {
-  //   main {
-  //     jniLibs.srcDirs = ['libs'] // Example if you have prebuilt .so files
-  //     jni.srcDirs = ['src/main/jni'] // Point to JNI sources explicitly if needed
-  //   }
-  // }
-
-    // Packaging options might be needed depending on WebRTC version / other libs
-    // packagingOptions {
-    //     pickFirst 'lib/armeabi-v7a/libc++_shared.so'
-    //     pickFirst 'lib/arm64-v8a/libc++_shared.so'
-    //     pickFirst 'lib/x86/libc++_shared.so'
-    //     pickFirst 'lib/x86_64/libc++_shared.so'
-    // }
 }
 
-// Define repositories for dependencies
 repositories {
+  // Inherit from root project is best practice, but ensure these are accessible
   mavenCentral()
   google()
-  // jcenter() // JCenter is deprecated, avoid if possible
 }
 
 // Get Kotlin version using helper
 def kotlin_version = getExtOrDefault("kotlinVersion")
 
 dependencies {
-  // React Native dependency (provided by react-native plugin usually)
   implementation "com.facebook.react:react-android"
-  // Kotlin standard library
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 
-  // --- ADDED: ExoPlayer dependencies ---
-  // Check for the latest versions: https://developer.android.com/guide/topics/media/exoplayer/getting-started
+  // ExoPlayer dependencies (for MP4)
   implementation 'androidx.media3:media3-exoplayer:1.3.0' // Example version, use latest stable
   implementation 'androidx.media3:media3-ui:1.3.0'      // Example version, use latest stable
 
-  // --- UPDATED: WebRTC dependency ---
-  // Using a specific known stable version instead of dynamic '1.0.+'
-  // You should still verify on search.maven.org if newer stable versions exist
-  implementation 'org.webrtc:google-webrtc:103.0.0' // Specific version
+  // --- UPDATED: WebRTC dependency using webrtc-sdk/android via JitPack ---
+  // REMOVED: implementation 'org.webrtc:google-webrtc:...'
 
-  // Add other dependencies needed by your implementation
+  // ADDED: Dependency for the specified SDK via JitPack (ASSUMPTION!)
+  // Replace 'latest-tag-or-commit' with a specific release tag (e.g., 'v1.2.3') or commit hash from the GitHub repo.
+  // Verify the exact coordinates from the SDK's documentation.
+  // Ensure maven { url 'https://www.jitpack.io' } is in your root build.gradle repositories block.
+  implementation 'io.github.webrtc-sdk:android:125.6422.07' // <-- ASSUMED COORDINATES - VERIFY!
+
 }
 
-/**
- * Set up Codegen configuration for the React Native Gradle Plugin.
- * This replaces the need for manual Codegen script execution in many cases.
- */
+// React Native Codegen configuration
 react {
-    jsRootDir = file("../js/") // Path to your JS/TS spec file directory
-    // Library name used by Codegen - should align with codegenConfig.name in package.json
+    jsRootDir = file("../js/")
     libraryName = "YourUnifiedPlayerSpec"
-    // Java package name for generated Codegen classes
-    codegenJavaPackageName = "com.yourunifiedplayer" // Use your library's package name
+    codegenJavaPackageName = "com.yourunifiedplayer"
 }
-

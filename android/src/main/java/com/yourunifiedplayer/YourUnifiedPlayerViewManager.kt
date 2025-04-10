@@ -1,110 +1,139 @@
 /**
- * android/src/.../YourUnifiedPlayerViewManager.kt (Fabric Conceptual - Refactored)
- * Manages the View instance for Fabric. Interacts with C++ layer via Delegate.
- * !!! REQUIRES FULL IMPLEMENTATION !!!
+ * android/src/.../UnifiedPlayerViewManager.kt (Refactored for Unified Player)
+ * Bridges UnifiedPlayerView (handling MP4 & WebRTC) to React Native.
+ * !!! Conceptual - Requires corresponding View implementation !!!
  */
-package com.yourunifiedplayer // Refactored package name
+package com.yourunifiedplayer // Use your unified package name
 
-import android.view.View
 import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
-import com.facebook.react.module.annotations.ReactModule
-import com.facebook.react.uimanager.SimpleViewManager // Or BaseViewManager? Check Fabric examples
+import com.facebook.react.common.MapBuilder
+import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext
-import com.facebook.react.uimanager.ViewManagerDelegate
 import com.facebook.react.uimanager.annotations.ReactProp
-// Import generated delegate and interface (names based on JS component name "UnifiedNativeVideoPlayer")
-import com.facebook.react.viewmanagers.UnifiedNativeVideoPlayerManagerDelegate
-import com.facebook.react.viewmanagers.UnifiedNativeVideoPlayerManagerInterface
 
-// Refactored Kotlin class name to YourUnifiedPlayerViewManager
-@ReactModule(name = YourUnifiedPlayerViewManager.REACT_CLASS) // Use companion object constant
-class YourUnifiedPlayerViewManager( // <<< CLASS NAME REFACTORED HERE
-    // val reactContext: ReactApplicationContext
-) : SimpleViewManager<YourUnifiedPlayerView>(), // Use refactored View class
-    UnifiedNativeVideoPlayerManagerInterface<YourUnifiedPlayerView> // Implement generated interface
-{
+// Assuming your refactored View class is named UnifiedPlayerView
+// import com.yourcompany.yourunifiedplayer.UnifiedPlayerView
+
+// Renamed Manager class
+class UnifiedPlayerViewManager(
+    // Context might be needed by the View or SDKs
+    private val callerContext: ReactApplicationContext? = null
+) : SimpleViewManager<UnifiedPlayerView>() { // Use refactored View class name
 
     companion object {
-        // Registered JS name (keep consistent with TS Spec and C++)
-        // This does NOT change just because the Kotlin class name changed.
-        const val REACT_CLASS = "UnifiedNativeVideoPlayer"
-    }
+        // Match the JS requireNativeComponent name for the unified player
+        const val REACT_CLASS = "UnifiedNativePlayerView"
 
-    // Delegate provided by Fabric Codegen
-    private val mDelegate: ViewManagerDelegate<YourUnifiedPlayerView>
-
-    init {
-        // Use generated delegate (name based on JS component name)
-        // The delegate name doesn't change with the Kotlin manager class name.
-        mDelegate = UnifiedNativeVideoPlayerManagerDelegate(this)
-    }
-
-    override fun getDelegate(): ViewManagerDelegate<YourUnifiedPlayerView>? {
-        return mDelegate
+        // --- Unified Command Names ---
+        // Use distinct names or check sourceType in receiveCommand
+        const val COMMAND_SEEK = "seek" // Primarily for MP4
+        // Add WebRTC specific commands if needed
+        // const val COMMAND_SWITCH_CAMERA = "switchCamera"
     }
 
     override fun getName(): String {
-        // Return the registered JS component name
         return REACT_CLASS
     }
 
-    // Create the actual View instance (use refactored View class)
-    override fun createViewInstance(reactContext: ThemedReactContext): YourUnifiedPlayerView {
-        return YourUnifiedPlayerView(reactContext)
+    // Create instance of the refactored View
+    override fun createViewInstance(reactContext: ThemedReactContext): UnifiedPlayerView {
+        // Pass context if needed by the View or SDKs
+        return UnifiedPlayerView(reactContext)
     }
 
-    // --- Prop Setters (Called via Delegate from C++) ---
-    // Implement methods defined in UnifiedNativeVideoPlayerManagerInterface
+    // --- Unified Prop Exports ---
 
-    override fun setPaused(view: YourUnifiedPlayerView, value: Boolean) { // Use non-nullable from generated interface? Check spec.
-        view.setPaused(value)
+    @ReactProp(name = "sourceType")
+    fun setSourceType(view: UnifiedPlayerView, type: String?) {
+        // Pass type to the view to help determine mode
+        view.setSourceType(type)
     }
 
-    override fun setMuted(view: YourUnifiedPlayerView, value: Boolean) {
-         // view.setMuted(value) // Add method to View
+    @ReactProp(name = "source")
+    fun setSource(view: UnifiedPlayerView, source: ReadableMap?) { // Assuming source is always an object for WebRTC case
+        // Pass the source object/map to the view for parsing
+        view.setSourceData(source)
+        // Note: The previous JS component used string for MP4, object for WebRTC.
+        // Consider standardizing on a source object like:
+        // { type: 'mp4', uri: '...' } or { type: 'webrtc', signalingUrl: '...' }
+        // The View's setSourceData would handle parsing this structure.
     }
 
-     override fun setVolume(view: YourUnifiedPlayerView, value: Float) {
-         // view.setVolume(value) // Add method to View
-     }
-
-     override fun setResizeMode(view: YourUnifiedPlayerView, value: String?) { // Nullable? Check spec.
-         // view.setResizeMode(value ?: "contain") // Add method to View
-     }
-
-    override fun setSource(view: YourUnifiedPlayerView, value: ReadableMap?) { // Nullable? Check spec.
-         view.setSource(value) // Pass to view for handling
+    @ReactProp(name = "paused", defaultBoolean = false)
+    fun setPaused(view: UnifiedPlayerView, paused: Boolean) {
+        view.setPaused(paused)
     }
 
-    // --- Event Exports ---
-    // Same as before, ensure keys match C++ event emitter names / registrationName matches TS spec
+    @ReactProp(name = "muted", defaultBoolean = false)
+    fun setMuted(view: UnifiedPlayerView, muted: Boolean) {
+        view.setMuted(muted)
+    }
+
+    @ReactProp(name = "volume", defaultFloat = 1.0f)
+    fun setVolume(view: UnifiedPlayerView, volume: Float) {
+         view.setVolume(volume)
+    }
+
+    // resizeMode primarily applies to MP4 rendering
+    @ReactProp(name = "resizeMode")
+    fun setResizeMode(view: UnifiedPlayerView, resizeMode: String?) {
+        view.setResizeMode(resizeMode)
+    }
+
+    // --- Unified Event Exports ---
+    // Ensure these match events emitted by UnifiedPlayerView and expected by JS component
     override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any>? {
-        return com.facebook.react.common.MapBuilder.builder<String, Any>()
-            .put("onUrlLoad", com.facebook.react.common.MapBuilder.of("registrationName", "onUrlLoad"))
-            .put("onWebRTCConnected", com.facebook.react.common.MapBuilder.of("registrationName", "onWebRTCConnected"))
-            .put("onError", com.facebook.react.common.MapBuilder.of("registrationName", "onError"))
-            // ... add all other events ...
+        return MapBuilder.builder<String, Any>()
+            // MP4 / Common Events (Names might need adjustment based on View logic)
+            .put("onVideoLoad", MapBuilder.of("registrationName", "onVideoLoad")) // MP4 loaded / WebRTC connected?
+            .put("onVideoProgress", MapBuilder.of("registrationName", "onVideoProgress")) // MP4 progress
+            .put("onVideoEnd", MapBuilder.of("registrationName", "onVideoEnd")) // MP4 finished / WebRTC disconnected?
+            .put("onReadyForDisplay", MapBuilder.of("registrationName", "onReadyForDisplay")) // First frame ready
+            // WebRTC Specific Events (Match JS component)
+            .put("onWebRTCConnected", MapBuilder.of("registrationName", "onWebRTCConnected"))
+            .put("onWebRTCDisconnected", MapBuilder.of("registrationName", "onWebRTCDisconnected"))
+            .put("onWebRTCStreamAdded", MapBuilder.of("registrationName", "onWebRTCStreamAdded"))
+            // Common Error Event
+            .put("onVideoError", MapBuilder.of("registrationName", "onVideoError")) // Unified error reporting
             .build()
     }
 
-    // --- Command Handling ---
-    // Implement methods from the generated interface called by the delegate
-
-    override fun seekUrl(view: YourUnifiedPlayerView, timeSeconds: Double) {
-        println("[Fabric Manager] seekUrl command received: $timeSeconds")
-        view.seekUrl(timeSeconds) // Call method on the View instance
+    // --- Unified Command Exports ---
+    override fun getCommandsMap(): Map<String, Int>? {
+        return mapOf(
+            COMMAND_SEEK to 1 // Example: Assign unique integer IDs
+            // COMMAND_SWITCH_CAMERA to 2
+        )
     }
 
-    override fun sendWebRTCMessage(view: YourUnifiedPlayerView, message: String) {
-       println("[Fabric Manager] sendWebRTCMessage command received: $message")
-        // view.sendWebRTCMessage(message) // Add corresponding method to View
+    // Handle commands dispatched from JS
+    override fun receiveCommand(
+        view: UnifiedPlayerView,
+        commandId: String?, // Command ID as String (more common now)
+        args: ReadableArray?
+    ) {
+        println("Unified Player Manager: Received command: $commandId")
+        when (commandId) {
+             // Match based on String command name
+             COMMAND_SEEK -> {
+                 val timeSeconds = args?.getDouble(0) ?: 0.0
+                 println("Unified Player Manager: Seeking to $timeSeconds")
+                 view.seek(timeSeconds) // Call seek method on the View
+             }
+             // Handle other commands...
+             // COMMAND_SWITCH_CAMERA -> view.switchCamera()
+            else -> {
+                 println("Unified Player Manager: Unknown command received: $commandId")
+            }
+        }
     }
 
-    // --- Cleanup ---
-    override fun onDropViewInstance(view: YourUnifiedPlayerView) { // Use refactored View type
+     // --- Cleanup ---
+     override fun onDropViewInstance(view: UnifiedPlayerView) {
         super.onDropViewInstance(view)
-        println("[Fabric Manager] Dropping view instance, calling cleanup.")
-        view.cleanUp() // Ensure view cleans up its resources
+        println("Unified Player Manager: Dropping view instance, releasing player.")
+        view.cleanup() // Call unified cleanup method on the View
     }
 }
