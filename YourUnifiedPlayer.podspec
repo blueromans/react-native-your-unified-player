@@ -1,10 +1,10 @@
 require "json"
 
-package = JSON.parse(File.read(File.join(__dir__, "package.json")))
+package = JSON.parse(File.read(File.join(__dir__, "..", "package.json")))
 # Common Folly compiler flags
 folly_compiler_flags = '-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -Wno-comma -Wno-shorten-64-to-32'
-# --- UPDATED Folly Version for RN 0.77.0 (Verify this version!) ---
-folly_version = '2023.08.07.00' # Common version for RN 0.77.x range, please double-check
+# --- CORRECTED Folly Version based on pod install error log for RN 0.77.0 ---
+folly_version = '2024.11.18.00' # Required by React-cxxreact@0.77.0 in this build
 
 # Define React Native path (adjust if needed)
 react_native_path = "../node_modules/react-native"
@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   s.homepage     = package["homepage"]
   s.license      = package["license"]
   s.authors      = package["author"]
-  # --- UPDATED Minimum iOS Target for RN 0.77.0 (Verify this version!) ---
+  # --- Minimum iOS Target for RN 0.77.0 (Verify this version!) ---
   s.platforms    = { :ios => "12.4" } # RN 0.71+ often needed 12.4, verify for 0.77.0
   s.source       = { :git => "https://github.com/yourusername/react-native-your-unified-player.git", :tag => "#{s.version}" }
 
@@ -26,7 +26,7 @@ Pod::Spec.new do |s|
   # React Native Dependencies for Fabric (Check compatibility with RN 0.77.0)
   s.dependency "React-Core"
   s.dependency "React-Codegen"
-  s.dependency "RCT-Folly", folly_version # Use updated folly_version variable
+  s.dependency "RCT-Folly", folly_version # Use corrected folly_version variable
   s.dependency "RCTRequired"
   s.dependency "RCTTypeSafety"
   s.dependency "ReactCommon/turbomodule/core"
@@ -36,8 +36,6 @@ Pod::Spec.new do |s|
 
   # === Add your specific iOS dependencies here ===
   # --- UNCOMMENTED WebRTC Dependency ---
-  # This adds the native Google WebRTC library for iOS.
-  # You might need to specify a version compatible with RN 0.77.0 if the latest causes issues.
   s.dependency 'GoogleWebRTC'
   # ==============================================
 
