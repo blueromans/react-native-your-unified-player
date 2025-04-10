@@ -149,7 +149,7 @@ dependencies {
   // --- UPDATED: WebRTC dependency ---
   // Using a specific known stable version instead of dynamic '1.0.+'
   // You should still verify on search.maven.org if newer stable versions exist
-  implementation 'org.webrtc:google-webrtc:1.0.32007' // Specific version
+  implementation 'org.webrtc:google-webrtc:1.0.32000' // Specific version
 
   // Add other dependencies needed by your implementation
 }
