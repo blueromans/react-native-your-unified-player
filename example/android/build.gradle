@@ -13,11 +13,16 @@ buildscript {
         google()
         mavenCentral()
     }
+
+    // --- Define variable within buildscript scope for reliable access ---
+    def kotlinVersion = ext.kotlinVersion
+
     dependencies {
         // Use variable for AGP version, ensure it's compatible with Gradle version
         classpath("com.android.tools.build:gradle:8.2.1") // Example stable AGP version
         classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${ext.kotlinVersion}") // Use ext variable
+        // --- Use the locally defined kotlinVersion variable ---
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
     }
 }
 
