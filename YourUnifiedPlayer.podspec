@@ -1,7 +1,7 @@
 require "json"
 
 # Read package.json to get library version etc.
-package = JSON.parse(File.read(File.join(__dir__, "..", "package.json")))
+package = JSON.parse(File.read(File.join(__dir__, "package.json")))
 # Define Folly flags (check compatibility with your RN version)
 folly_compiler_flags = '-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -Wno-comma -Wno-shorten-64-to-32'
 # Define Folly version (check compatibility with your RN version)
