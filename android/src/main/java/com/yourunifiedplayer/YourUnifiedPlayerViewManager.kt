@@ -24,7 +24,7 @@ class UnifiedPlayerViewManager(
 
     companion object {
         // Match the JS requireNativeComponent name for the unified player
-        const val REACT_CLASS = "UnifiedNativePlayerView"
+        const val REACT_CLASS = "YourUnifiedPlayerView"
 
         // --- Unified Command Names ---
         // Use distinct names or check sourceType in receiveCommand

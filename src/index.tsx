@@ -1,2 +1,2 @@
-export { default as YourUnifiedPlayerView } from './YourUnifiedPlayerViewNativeComponent';
+export { default as YourUnifiedPlayerView } from './YourUnifiedPlayerView';
 export * from './YourUnifiedPlayerViewNativeComponent';
