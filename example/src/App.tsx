@@ -1,3 +1,4 @@
+/* eslint-disable react-native/no-inline-styles */
 import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -22,38 +23,6 @@ import {
 const STREAMING_URL_OPTIONS = [
   {
     label: 'Future date URL with live=true',
-    url: 'http://52.0.202.78:2326/get?path=amish_554_cam_19&live=true',
-  },
-  {
-    label: 'Original future date URL',
-    url: 'http://52.0.202.78:2326/get?duration=44737&path=amish_554_cam_19&start=2025-04-16T21:30:00Z',
-  },
-  {
-    label: 'Modified future date URL',
-    url: 'http://52.0.202.78:2326/get?duration=44737&path=amish_554_cam_19&live=true',
-  },
-  {
-    label: 'Live stream with live=true',
-    url: 'http://52.0.202.78:2326/get?path=amish_554_cam_19&live=true',
-  },
-  {
-    label: 'Using start time and duration',
-    url: 'http://52.0.202.78:2326/get?path=amish_554_cam_19&start=2023-04-22T10:00:00Z&duration=3600',
-  },
-  {
-    label: 'Simple path only',
-    url: 'http://52.0.202.78:2326/get?path=amish_554_cam_19',
-  },
-  {
-    label: 'With specific format parameter',
-    url: 'http://52.0.202.78:2326/get?path=amish_554_cam_19&format=mp4',
-  },
-  {
-    label: 'User provided URL (with live=true)',
-    url: 'http://52.0.202.78:2326/get?path=amish_554_cam_19&live=true',
-  },
-  {
-    label: 'Test video (Big Buck Bunny)',
     url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
   },
 ];
@@ -72,7 +41,7 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Input state
-  const [urlIndex, setUrlIndex] = useState(0);
+  const [urlIndex, setUrlIndex] = useState(8);
   const [videoUrl, setVideoUrl] = useState(STREAMING_URL_OPTIONS[0]?.url || '');
   const [authToken, setAuthToken] = useState('');
 
@@ -131,36 +100,6 @@ const App = () => {
       setIsLoading(false);
     }, 500);
   }, [urlIndex, addLog]);
-
-  // Handle user custom URL
-  const updateCustomUrl = useCallback(
-    (userUrl: string) => {
-      // If the URL has a future date parameter, adjust the options
-      if (userUrl.includes('start=') && userUrl.includes('2025')) {
-        // Create a version with live=true instead
-        const urlWithLive = userUrl.includes('live=true')
-          ? userUrl
-          : userUrl.replace(/(&start=[^&]+)/, '') + '&live=true';
-
-        // Update the "User provided URL" option
-        const userOptionIndex = STREAMING_URL_OPTIONS.findIndex((option) =>
-          option.label.includes('User provided')
-        );
-
-        if (userOptionIndex >= 0) {
-          const option = STREAMING_URL_OPTIONS[userOptionIndex];
-          if (option) {
-            option.url = urlWithLive;
-          }
-        }
-
-        addLog(`Detected future date - added 'live=true' parameter`);
-      }
-
-      setVideoUrl(userUrl);
-    },
-    [addLog]
-  );
 
   // Setup event listeners
   React.useEffect(() => {
@@ -265,8 +204,8 @@ const App = () => {
       );
     }
     addLog(`Loading URL: ${videoUrl}`);
-    updateCustomUrl(videoUrl);
-  }, [videoUrl, addLog, updateCustomUrl]);
+    setVideoUrl(videoUrl);
+  }, [videoUrl, addLog]);
 
   return (
     <SafeAreaView style={styles.container}>
