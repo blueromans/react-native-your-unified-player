@@ -1,20 +1,33 @@
 package com.unifiedplayer
 
-import android.graphics.Color
-import android.view.View
 import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.annotations.ReactProp
 
-class UnifiedPlayerViewManager : SimpleViewManager<View>() {
+class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
   override fun getName() = "UnifiedPlayerView"
 
-  override fun createViewInstance(reactContext: ThemedReactContext): View {
-    return View(reactContext)
+  override fun createViewInstance(reactContext: ThemedReactContext): UnifiedPlayerView {
+    return UnifiedPlayerView(reactContext)
   }
 
-  @ReactProp(name = "color")
-  fun setColor(view: View, color: String) {
-    view.setBackgroundColor(Color.parseColor(color))
+  @ReactProp(name = "videoUrl")
+  fun setVideoUrl(view: UnifiedPlayerView, url: String?) {
+    view.setVideoUrl(url)
+  }
+
+  @ReactProp(name = "authToken")
+  fun setAuthToken(view: UnifiedPlayerView, token: String?) {
+    view.setAuthToken(token)
+  }
+
+  @ReactProp(name = "autoplay")
+  fun setAutoplay(view: UnifiedPlayerView, autoplay: Boolean) {
+    view.setAutoplay(autoplay)
+  }
+
+  @ReactProp(name = "loop")
+  fun setLoop(view: UnifiedPlayerView, loop: Boolean) {
+    view.setLoop(loop)
   }
 }
