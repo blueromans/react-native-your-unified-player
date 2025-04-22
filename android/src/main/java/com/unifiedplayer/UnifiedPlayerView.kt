@@ -44,10 +44,20 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                 LayoutParams.MATCH_PARENT
             )
             setPlayer(player)
-            // playerView.surfaceView?.surfaceType = android.view.SurfaceView.SURFACE_TYPE_SOFTWARE
+            // playerView.surfaceView?.surfaceType = android.view.SurfaceView.SURFACE_TYPE_SOFTWARE // Reverted: Let's remove surfaceType setting
         }
 
         addView(playerView)
+        // Add logging for playerView dimensions and post play call
+        playerView.post {
+            Log.d(TAG, "PlayerView dimensions after addView: width=${playerView.width}, height=${playerView.height}")
+            // Post play call to ensure PlayerView is laid out
+            if (autoplay) {
+                 player?.play()
+                 isPlaying = true
+                 Log.d(TAG, "Autoplay: player?.play() called after layout")
+            }
+        }
 
         player?.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -56,9 +66,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                     Player.STATE_READY -> {
                         Log.d(TAG, "ExoPlayer STATE_READY")
                         sendEvent("onReadyToPlay", Arguments.createMap())
-                        if (autoplay) {
-                            play()
-                        }
+                        // Removed custom autoplay logic, relying on player?.playWhenReady
                     }
                     Player.STATE_ENDED -> {
                         Log.d(TAG, "ExoPlayer STATE_ENDED")
@@ -138,6 +146,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 // Called when video size changes.
                 Log.d(TAG, "ExoPlayer onVideoSizeChanged: videoSize=$videoSize")
+                Log.d(TAG, "Video size changed: width=${videoSize.width}, height=${videoSize.height}")
             }
 
             override fun onSurfaceSizeChanged(width: Int, height: Int) {
@@ -180,7 +189,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         player?.prepare()
         Log.d(TAG, "ExoPlayer prepared")
     }
-    
+
     fun setAuthToken(token: String?) {
         authToken = token
         // If URL already set, reload with new token
@@ -188,45 +197,67 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
             setVideoUrl(videoUrl) // reload video
         }
     }
-    
+
     fun setAutoplay(value: Boolean) {
         autoplay = value
+        player?.playWhenReady = value // Set ExoPlayer's playWhenReady property
     }
-    
+
     fun setLoop(value: Boolean) {
         loop = value
         player?.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
     }
-    
+
     fun play() {
         Log.d(TAG, "Play called")
         player?.play()
         isPlaying = true
     }
-    
+
     fun pause() {
         Log.d(TAG, "Pause called")
         player?.pause()
         isPlaying = false
     }
-    
+
     fun seekTo(time: Float) {
         Log.d(TAG, "Seek called: $time")
         player?.seekTo((time * 1000).toLong()) // time in seconds, ExoPlayer in milliseconds
     }
-    
+
     fun getCurrentTime(): Float {
         return (player?.currentPosition?.toFloat() ?: 0f) / 1000f // to seconds
     }
-    
+
     fun getDuration(): Float {
         return (player?.duration?.toFloat() ?: 0f) / 1000f // to seconds
     }
-    
+
     private fun sendEvent(eventName: String, params: WritableMap) {
         UnifiedPlayerEventEmitter.getInstance()?.sendEvent(eventName, params)
     }
-    
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        val width = right - left
+        val height = bottom - top
+        Log.d(TAG, "UnifiedPlayerView onLayout: width=$width, height=$height")
+        // Ensure playerView also gets laid out
+        playerView.layout(0, 0, width, height)
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        Log.d(TAG, "UnifiedPlayerView onAttachedToWindow")
+        playerView.setPlayer(player)
+        // Autoplay logic can remain in post block or be moved here
+        if (autoplay) {
+             player?.play()
+             isPlaying = true
+             Log.d(TAG, "Autoplay: player?.play() called in onAttachedToWindow")
+        }
+    }
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         player?.release()
