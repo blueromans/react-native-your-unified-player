@@ -13,11 +13,12 @@ import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.PlaybackException
-import com.google.android.exoplayer2.Timeline
 import com.google.android.exoplayer2.Tracks
 import com.google.android.exoplayer2.ui.PlayerView
 import com.google.android.exoplayer2.video.VideoSize
 import com.facebook.react.bridge.WritableMap
+import com.facebook.react.bridge.ReactContext
+import com.facebook.react.uimanager.events.RCTEventEmitter
 
 class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     companion object {
@@ -25,12 +26,12 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     }
 
     private var videoUrl: String? = null
-    private var authToken: String? = null
     private var autoplay: Boolean = true
     private var loop: Boolean = false
     private var playerView: PlayerView
     private var player: ExoPlayer? = null
     private var currentProgress = 0
+    private var isPaused = false
 
     private val progressHandler = Handler(Looper.getMainLooper())
     private val progressRunnable: Runnable = object : Runnable {
@@ -39,14 +40,22 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                 val currentTime = it.currentPosition.toFloat() / 1000f
                 val duration = it.duration.toFloat() / 1000f
 
-                if (duration > 0) {
-                    val event = Arguments.createMap().apply {
-                        putDouble("currentTime", currentTime.toDouble())
-                        putDouble("duration", duration.toDouble())
-                    }
-                    sendEvent(UnifiedPlayerEventEmitter.EVENT_PROGRESS, event)
+                // Log the actual values for debugging
+                Log.d(TAG, "Progress values - currentTime: $currentTime, duration: $duration, raw duration: ${it.duration}")
+
+                // Only send valid duration values
+                if (it.duration > 0) {
+                    val event = Arguments.createMap()
+                    event.putDouble("currentTime", currentTime.toDouble())
+                    event.putDouble("duration", duration.toDouble())
+                    
+                    Log.d(TAG, "Sending progress event: currentTime=$currentTime, duration=$duration")
+                    sendEvent("topProgress", event)
+                } else {
+                    Log.d(TAG, "Not sending progress event because duration is $duration (raw: ${it.duration})")
                 }
-            }
+            } ?: Log.e(TAG, "Cannot send progress event: player is null")
+            
             // Schedule the next update
             progressHandler.postDelayed(this, 250) // Update every 250ms
         }
@@ -80,11 +89,11 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                 when (playbackState) {
                     Player.STATE_READY -> {
                         Log.d(TAG, "ExoPlayer STATE_READY")
-                        sendEvent("onReadyToPlay", Arguments.createMap())
+                        sendEvent("topReadyToPlay", Arguments.createMap())
                     }
                     Player.STATE_ENDED -> {
                         Log.d(TAG, "ExoPlayer STATE_ENDED")
-                        sendEvent("onPlaybackComplete", Arguments.createMap())
+                        sendEvent("topPlaybackComplete", Arguments.createMap())
                     }
                     Player.STATE_BUFFERING -> {
                         Log.d(TAG, "ExoPlayer STATE_BUFFERING")
@@ -92,34 +101,33 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                     Player.STATE_IDLE -> {
                         Log.d(TAG, "ExoPlayer STATE_IDLE")
                     }
-                    Player.STATE_BUFFERING -> {
-                        Log.d(TAG, "ExoPlayer STATE_BUFFERING")
-                    }
                 }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                Log.d(TAG, "onIsPlayingChanged: $isPlaying")
                 if (isPlaying) {
                     Log.d(TAG, "ExoPlayer isPlaying")
-                    sendEvent("onPlay", Arguments.createMap())
+                    // Use the defined event constant for playback resumed
+                    sendEvent("topPlaybackResumed", Arguments.createMap())
                 } else {
                     Log.d(TAG, "ExoPlayer isPaused")
-                    sendEvent("onPause", Arguments.createMap())
+                    // Add event emission for pause state
+                    sendEvent("topPlaybackPaused", Arguments.createMap())
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                Log.e(TAG, "ExoPlayer Error: ${error.message}, errorCode: ${error.errorCodeName}, errorCode বিস্তারিত: ${error.errorCode}")
+                Log.d(TAG, "ExoPlayer onPlayerError: ${error.message}")
                 val event = Arguments.createMap().apply {
-                    putInt("code", error.errorCode)
-                    putString("message", error.message)
+                    putString("error", error.message)
                 }
-                sendEvent("onError", event)
+                sendEvent("topError", event)
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 Log.d(TAG, "ExoPlayer onMediaItemTransition")
-                sendEvent("onLoadStart", Arguments.createMap())
+                sendEvent("topLoadStart", Arguments.createMap())
             }
 
             override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
@@ -177,39 +185,67 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                 // Called when skip silence is enabled or disabled.
                 Log.d(TAG, "ExoPlayer onSkipSilenceEnabledChanged: skipSilenceEnabled=$skipSilenceEnabled")
             }
-
-            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-                // Called when the timeline changes, like when a new media source is loaded or an ad break starts or ends.
-                Log.d(TAG, "ExoPlayer onTimelineChanged: timeline=$timeline, reason=$reason")
-            }
         })
     }
 
     fun setVideoUrl(url: String?) {
         Log.d(TAG, "Setting video URL: $url")
-        if (url.isNullOrEmpty()) {
-            Log.d(TAG, "Video URL is null or empty, skipping load")
+        
+        if (url == null || url.isEmpty()) {
+            Log.e(TAG, "Empty or null URL provided")
             return
         }
-
+        
         videoUrl = url
-
-
-        // Load video with ExoPlayer
-        Log.d(TAG, "Creating MediaItem from URI: $videoUrl")
-        val mediaItem = MediaItem.fromUri(videoUrl!!)
-        player?.setMediaItem(mediaItem)
-        Log.d(TAG, "Preparing ExoPlayer")
-        player?.prepare()
-        Log.d(TAG, "ExoPlayer prepared")
+        
+        try {
+            // Create a MediaItem
+            val mediaItem = MediaItem.fromUri(url)
+            
+            // Reset the player to ensure clean state
+            player?.stop()
+            player?.clearMediaItems()
+            
+            // Set the media item
+            player?.setMediaItem(mediaItem)
+            
+            // Prepare the player (this will start loading the media)
+            player?.prepare()
+            
+            // Set playWhenReady based on autoplay setting
+            player?.playWhenReady = autoplay && !isPaused
+            
+            // Set repeat mode based on loop setting
+            player?.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+            
+            // Log that we've set up the player
+            Log.d(TAG, "ExoPlayer configured with URL: $url, autoplay: $autoplay, loop: $loop")
+            
+            // Add a listener to check when the player is ready and has duration
+            player?.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_READY) {
+                        val duration = player?.duration ?: 0
+                        Log.d(TAG, "Player ready with duration: ${duration / 1000f} seconds")
+                        
+                        // Force a progress update immediately
+                        progressRunnable.run()
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting video URL: ${e.message}", e)
+            
+            // Send error event
+            val event = Arguments.createMap()
+            event.putString("error", "Failed to load video: ${e.message}")
+            sendEvent("topError", event)
+        }
     }
 
     fun setAuthToken(token: String?) {
-        authToken = token
-        // If URL already set, reload with new token
-        if (!videoUrl.isNullOrEmpty()) {
-            setVideoUrl(videoUrl) // reload video
-        }
+        // Removed as per request
+        Log.d(TAG, "Auth token handling removed")
     }
 
     fun setAutoplay(value: Boolean) {
@@ -224,6 +260,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
 
     fun setIsPaused(isPaused: Boolean) {
         Log.d(TAG, "setIsPaused called with value: $isPaused")
+        this.isPaused = isPaused
         if (isPaused) {
             player?.pause()
         } else {
@@ -232,30 +269,76 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     }
 
     fun play() {
-        Log.d(TAG, "Play called")
-        player?.play()
+        Log.d(TAG, "Play method called")
+        player?.playWhenReady = true
     }
 
     fun pause() {
-        Log.d(TAG, "Pause called from module") // Add this log
-        player?.pause()
+        Log.d(TAG, "Pause method called")
+        player?.playWhenReady = false
     }
 
-    fun seekTo(time: Float) {
-        Log.d(TAG, "Seek called: $time")
-        player?.seekTo((time * 1000).toLong()) // time in seconds, ExoPlayer in milliseconds
+    fun seekTo(seconds: Float) {
+        Log.d(TAG, "SeekTo method called with seconds: $seconds")
+        player?.let {
+            val milliseconds = (seconds * 1000).toLong()
+            Log.d(TAG, "Seeking to $milliseconds ms")
+            it.seekTo(milliseconds)
+            
+            // Force a progress update after seeking
+            progressRunnable.run()
+        } ?: Log.e(TAG, "Cannot seek: player is null")
     }
 
     fun getCurrentTime(): Float {
-        return (player?.currentPosition?.toFloat() ?: 0f) / 1000f // to seconds
+        Log.d(TAG, "GetCurrentTime method called")
+        return player?.let {
+            val currentTime = it.currentPosition.toFloat() / 1000f
+            Log.d(TAG, "Current time: $currentTime seconds")
+            currentTime
+        } ?: run {
+            Log.e(TAG, "Cannot get current time: player is null")
+            0f
+        }
     }
 
     fun getDuration(): Float {
-        return (player?.duration?.toFloat() ?: 0f) / 1000f // to seconds
+        Log.d(TAG, "GetDuration method called")
+        return player?.let {
+            val duration = it.duration.toFloat() / 1000f
+            Log.d(TAG, "Duration: $duration seconds (raw: ${it.duration})")
+            if (it.duration > 0) duration else 0f
+        } ?: run {
+            Log.e(TAG, "Cannot get duration: player is null")
+            0f
+        }
     }
 
+    // Add a getter for the ExoPlayer instance
+    val exoPlayer: ExoPlayer?
+        get() = this.player
+
     private fun sendEvent(eventName: String, params: WritableMap) {
-        UnifiedPlayerEventEmitter.getInstance()?.sendEvent(eventName, params)
+        try {
+            // Log the event for debugging
+            Log.d(TAG, "Sending direct event: $eventName with params: $params")
+            
+            // Use the ReactContext to dispatch the event directly to the view
+            val reactContext = context as ReactContext
+            reactContext.getJSModule(RCTEventEmitter::class.java)
+                .receiveEvent(id, eventName, params)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending event $eventName: ${e.message}", e)
+        }
+    }
+    
+    // Add a method to explicitly start progress updates
+    private fun startProgressUpdates() {
+        Log.d(TAG, "Starting progress updates")
+        // Remove any existing callbacks to avoid duplicates
+        progressHandler.removeCallbacks(progressRunnable)
+        // Post the runnable to start updates
+        progressHandler.post(progressRunnable)
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
@@ -271,7 +354,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         super.onAttachedToWindow()
         Log.d(TAG, "UnifiedPlayerView onAttachedToWindow")
         playerView.setPlayer(player)
-        progressHandler.post(progressRunnable) // Start progress updates
+        startProgressUpdates() // Use the new method to start progress updates
     }
 
     override fun onDetachedFromWindow() {

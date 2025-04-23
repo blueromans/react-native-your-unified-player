@@ -3,22 +3,24 @@ package com.unifiedplayer
 import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.annotations.ReactProp
+import com.facebook.react.common.MapBuilder
+import android.util.Log
+import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.uimanager.events.RCTEventEmitter
 
 class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
+  private val TAG = "UnifiedPlayerViewManager"
+  
   override fun getName() = "UnifiedPlayerView"
 
   override fun createViewInstance(reactContext: ThemedReactContext): UnifiedPlayerView {
+    Log.d(TAG, "Creating UnifiedPlayerView instance")
     return UnifiedPlayerView(reactContext)
   }
 
   @ReactProp(name = "videoUrl")
   fun setVideoUrl(view: UnifiedPlayerView, url: String?) {
     view.setVideoUrl(url)
-  }
-
-  @ReactProp(name = "authToken")
-  fun setAuthToken(view: UnifiedPlayerView, token: String?) {
-    view.setAuthToken(token)
   }
 
   @ReactProp(name = "autoplay")
@@ -34,5 +36,21 @@ class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
   @ReactProp(name = "isPaused")
   fun setIsPaused(view: UnifiedPlayerView, isPaused: Boolean) {
     view.setIsPaused(isPaused)
+  }
+  
+  // Register direct events
+  override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any> {
+    Log.d(TAG, "Registering direct events")
+    
+    // Create a map of event names to their registration names
+    return MapBuilder.builder<String, Any>()
+      .put("topReadyToPlay", MapBuilder.of("registrationName", "onReadyToPlay"))
+      .put("topError", MapBuilder.of("registrationName", "onError"))
+      .put("topProgress", MapBuilder.of("registrationName", "onProgress"))
+      .put("topPlaybackComplete", MapBuilder.of("registrationName", "onPlaybackComplete"))
+      .put("topPlaybackResumed", MapBuilder.of("registrationName", "onPlaybackResumed"))
+      .put("topPlaybackPaused", MapBuilder.of("registrationName", "onPlaybackPaused"))
+      .put("topLoadStart", MapBuilder.of("registrationName", "onLoadStart"))
+      .build()
   }
 }

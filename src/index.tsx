@@ -1,22 +1,28 @@
-import { type Ref, type ElementRef, forwardRef } from 'react'; // Import from 'react'
+import { type ElementRef, forwardRef } from 'react'; // Import from 'react'
 import {
   requireNativeComponent,
   UIManager,
+  NativeModules,
   Platform,
   type ViewStyle,
-  NativeModules,
-  NativeEventEmitter,
-} from 'react-native'; // Import from 'react-native'
+} from 'react-native';
 
+// Check if the native module is available
 const LINKING_ERROR =
   `The package 'react-native-unified-player' doesn't seem to be linked. Make sure: \n\n` +
   Platform.select({ ios: "- You have run 'pod install'\n", default: '' }) +
   '- You rebuilt the app after installing the package\n' +
   '- You are not using Expo Go\n';
 
-/**
- * Props for the UnifiedPlayerView component
- */
+// Verify the native module exists
+if (
+  !UIManager.getViewManagerConfig('UnifiedPlayerView') &&
+  !NativeModules.UnifiedPlayer
+) {
+  throw new Error(LINKING_ERROR);
+}
+
+// Define the props for the UnifiedPlayerView component
 export type UnifiedPlayerProps = {
   // Video source URL
   videoUrl: string;
@@ -33,9 +39,6 @@ export type UnifiedPlayerProps = {
   // Is the player currently paused
   isPaused?: boolean;
 
-  // Optional auth token for protected streams
-  authToken?: string;
-
   // Callback when video is ready to play
   onReadyToPlay?: () => void;
 
@@ -49,26 +52,24 @@ export type UnifiedPlayerProps = {
   onProgress?: (data: { currentTime: number; duration: number }) => void;
 };
 
-// Name of the native component
-const ComponentName = 'UnifiedPlayerView';
-
-// Props for the native component including ref
-type NativeUnifiedPlayerViewProps = UnifiedPlayerProps & {
-  ref?: Ref<ElementRef<typeof NativeUnifiedPlayerView>>;
-};
-
-// Native component import
+// Native component registration
 const NativeUnifiedPlayerView =
-  UIManager.getViewManagerConfig(ComponentName) != null
-    ? requireNativeComponent<NativeUnifiedPlayerViewProps>(ComponentName)
-    : () => {
-        throw new Error(LINKING_ERROR);
-      };
+  requireNativeComponent<UnifiedPlayerProps>('UnifiedPlayerView');
 
-// Native module for additional control methods
-const UnifiedPlayerModule = NativeModules.UnifiedPlayerModule;
-// Native module for events
-const UnifiedPlayerEventEmitterModule = NativeModules.UnifiedPlayerEvents;
+// Newline added here
+
+// Native module for player control methods
+const UnifiedPlayerModule = NativeModules.UnifiedPlayer;
+
+// Export event types for reference
+export const UnifiedPlayerEventTypes = {
+  READY: 'onReadyToPlay',
+  ERROR: 'onError',
+  PROGRESS: 'onProgress',
+  COMPLETE: 'onPlaybackComplete',
+  STALLED: 'onPlaybackStalled',
+  RESUMED: 'onPlaybackResumed',
+};
 
 /**
  * UnifiedPlayerView component for video playback
@@ -84,73 +85,81 @@ export const UnifiedPlayerView = forwardRef<
  * API methods for controlling playback
  */
 export const UnifiedPlayer = {
-  // Play the video
-  play: (viewTag: number) => {
-    if (UnifiedPlayerModule?.play) {
+  /**
+   * Start playback
+   * @param viewTag - The tag of the player view
+   */
+  play: (viewTag: number): void => {
+    try {
+      console.log('UnifiedPlayer.play called with viewTag:', viewTag);
       UnifiedPlayerModule.play(viewTag);
+      console.log('Native play method called successfully');
+    } catch (error) {
+      console.error('Error calling play:', error);
     }
   },
 
-  // Pause the video
-  pause: (viewTag: number) => {
-    if (UnifiedPlayerModule?.pause) {
+  /**
+   * Pause playback
+   * @param viewTag - The tag of the player view
+   */
+  pause: (viewTag: number): void => {
+    try {
+      console.log('UnifiedPlayer.pause called with viewTag:', viewTag);
       UnifiedPlayerModule.pause(viewTag);
+      console.log('Native pause method called successfully');
+    } catch (error) {
+      console.error('Error calling pause:', error);
     }
   },
 
-  // Seek to a specific time
-  seekTo: (viewTag: number, time: number) => {
-    if (UnifiedPlayerModule?.seekTo) {
+  /**
+   * Seek to a specific time
+   * @param viewTag - The tag of the player view
+   * @param time - Time in seconds to seek to
+   */
+  seekTo: (viewTag: number, time: number): void => {
+    try {
+      console.log(
+        'UnifiedPlayer.seekTo called with viewTag:',
+        viewTag,
+        'time:',
+        time
+      );
       UnifiedPlayerModule.seekTo(viewTag, time);
+      console.log('Native seekTo method called successfully');
+    } catch (error) {
+      console.error('Error calling seekTo:', error);
     }
   },
 
-  // Get the current playback time
+  /**
+   * Get current playback time
+   * @param viewTag - The tag of the player view
+   * @returns Promise resolving to current time in seconds
+   */
   getCurrentTime: (viewTag: number): Promise<number> => {
-    if (UnifiedPlayerModule?.getCurrentTime) {
+    try {
+      console.log('UnifiedPlayer.getCurrentTime called with viewTag:', viewTag);
       return UnifiedPlayerModule.getCurrentTime(viewTag);
+    } catch (error) {
+      console.error('Error calling getCurrentTime:', error);
+      return Promise.reject(error);
     }
-    return Promise.resolve(0);
   },
 
-  // Get the duration of the video
+  /**
+   * Get video duration
+   * @param viewTag - The tag of the player view
+   * @returns Promise resolving to duration in seconds
+   */
   getDuration: (viewTag: number): Promise<number> => {
-    if (UnifiedPlayerModule?.getDuration) {
+    try {
+      console.log('UnifiedPlayer.getDuration called with viewTag:', viewTag);
       return UnifiedPlayerModule.getDuration(viewTag);
-    }
-    return Promise.resolve(0);
-  },
-
-  // Test method
-  testMethod: (message: string) => {
-    if (UnifiedPlayerModule?.testMethod) {
-      UnifiedPlayerModule.testMethod(message);
+    } catch (error) {
+      console.error('Error calling getDuration:', error);
+      return Promise.reject(error);
     }
   },
-};
-
-// Events emitter for native events
-let eventEmitter: NativeEventEmitter | null = null;
-
-if (UnifiedPlayerEventEmitterModule) {
-  eventEmitter = new NativeEventEmitter(UnifiedPlayerEventEmitterModule);
-}
-
-export const UnifiedPlayerEvents = {
-  addListener: (eventType: string, listener: (...args: any[]) => any) => {
-    if (eventEmitter) {
-      return eventEmitter.addListener(eventType, listener);
-    }
-    return { remove: () => {} };
-  },
-};
-
-// Event names
-export const UnifiedPlayerEventTypes = {
-  READY: 'onReadyToPlay',
-  ERROR: 'onError',
-  PROGRESS: 'onProgress',
-  COMPLETE: 'onPlaybackComplete',
-  STALLED: 'onPlaybackStalled',
-  RESUMED: 'onPlaybackResumed',
 };
