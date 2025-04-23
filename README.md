@@ -1,135 +1,118 @@
-# React Native Your Unified Player
+# react-native-unified-player
 
-A powerful React Native component that provides a unified interface for playing both MP4 videos and WebRTC streams. Built with Fabric and the new React Native architecture.
+Unified Player
+
+A React Native component for playing videos via URL, built with Fabric.
 
 ## Features
 
-- 🎥 Support for MP4 video playback
-- 🌐 WebRTC streaming capabilities
-- 🔄 Unified interface for both video types
+- 🎥 Play videos from a URL source
 - 📱 Native performance with Fabric architecture
-- 🎛️ Comprehensive playback controls
-- 📊 Event handling for player states
-- 🔍 Support for different resize modes
-- 🎚️ Volume and mute controls
-- ⏯️ Play/pause functionality
+- 📊 Event handling for player states (Ready, Error, Progress, Complete, Stalled, Resumed)
+- 🎛️ Control playback with methods (Play, Pause, Seek, Get Current Time, Get Duration)
+- 🔄 Optional autoplay and loop
 
 ## Installation
 
 ```bash
-yarn add react-native-your-unified-player
+yarn add react-native-unified-player
 ```
 
 or
 
 ```bash
-npm install react-native-your-unified-player
+npm install react-native-unified-player
 ```
 
 ## Usage
 
 ### Basic Usage
 
-```jsx
-import { YourUnifiedPlayerView } from 'react-native-your-unified-player';
-
-// For MP4 video
-<YourUnifiedPlayerView
-  source={{
-    type: 'url',
-    uri: 'https://example.com/video.mp4'
-  }}
-  style={{ width: '100%', height: 300 }}
-  paused={false}
-  muted={false}
-  volume={1.0}
-  resizeMode="contain"
-  onUrlLoad={({ duration, naturalSize }) => {
-    console.log('Video loaded:', duration, naturalSize);
-  }}
-  onError={({ error, code }) => {
-    console.error('Player error:', error, code);
-  }}
-/>
-
-// For WebRTC stream
-<YourUnifiedPlayerView
-  source={{
-    type: 'webrtc',
-    signalingUrl: 'wss://example.com/signaling',
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' }
-    ]
-  }}
-  style={{ width: '100%', height: 300 }}
-  onWebRTCConnected={({ connectionInfo }) => {
-    console.log('WebRTC connected:', connectionInfo);
-  }}
-  onWebRTCDisconnected={({ code, reason }) => {
-    console.log('WebRTC disconnected:', code, reason);
-  }}
-/>
-```
-
-### Props
-
-#### Common Props
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `paused` | `boolean` | `false` | Controls playback state |
-| `muted` | `boolean` | `false` | Controls audio mute state |
-| `volume` | `number` | `1.0` | Controls audio volume (0.0 to 1.0) |
-| `resizeMode` | `'contain' \| 'cover' \| 'stretch'` | `'contain'` | Controls how the video fits in the view |
-
-#### Source Props
-
-For MP4 videos:
 ```typescript
-{
-  type: 'url';
-  uri: string;
-}
+import { UnifiedPlayerView, UnifiedPlayer, UnifiedPlayerEventTypes, UnifiedPlayerEvents } from 'react-native-unified-player';
+import React, { useRef, useEffect } from 'react';
+import { View } from 'react-native';
+
+const MyPlayerComponent = () => {
+  const playerRef = useRef(null);
+
+  // Example of using event listeners (optional)
+  useEffect(() => {
+    const readyListener = UnifiedPlayerEvents.addListener(UnifiedPlayerEventTypes.READY, () => {
+      console.log('Player is ready to play');
+      // You can call UnifiedPlayer methods here, e.g., UnifiedPlayer.play(playerRef.current.getNativeTag());
+    });
+
+    const errorListener = UnifiedPlayerEvents.addListener(UnifiedPlayerEventTypes.ERROR, (error) => {
+      console.error('Player error:', error);
+    });
+
+    // Add other listeners as needed (PROGRESS, COMPLETE, STALLED, RESUMED)
+
+    return () => {
+      // Clean up listeners on unmount
+      readyListener.remove();
+      errorListener.remove();
+      // Remove other listeners
+    };
+  }, []);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <UnifiedPlayerView
+        ref={playerRef}
+        style={{ width: '100%', height: 300 }} // Example style
+        videoUrl="YOUR_VIDEO_URL_HERE" // Replace with your video URL
+        autoplay={false} // Optional: set to true to autoplay
+        loop={false} // Optional: set to true to loop
+        // authToken="YOUR_AUTH_TOKEN" // Optional: for protected streams
+        // You can also use direct view props instead of or in addition to event listeners:
+        // onReadyToPlay={() => console.log('View prop: Ready to play')}
+        // onError={(e) => console.log('View prop: Error', e)}
+        // onPlaybackComplete={() => console.log('View prop: Playback complete')}
+        // onProgress={(data) => console.log('View prop: Progress', data)}
+      />
+    </View>
+  );
+};
+
+export default MyPlayerComponent;
 ```
 
-For WebRTC streams:
-```typescript
-{
-  type: 'webrtc';
-  signalingUrl: string;
-  streamConfig?: object;
-  iceServers?: ReadonlyArray<{ urls: string | ReadonlyArray<string> }>;
-}
-}
-```
+## Props
 
-### Events
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `videoUrl` | `string` | Yes | Video source URL |
+| `style` | `ViewStyle` | Yes | Apply custom styling |
+| `autoplay` | `boolean` | No | Autoplay video when loaded |
+| `loop` | `boolean` | No | Should video loop when finished |
+| `authToken` | `string` | No | Optional auth token for protected streams |
+| `onReadyToPlay` | `() => void` | No | Callback when video is ready to play |
+| `onError` | `(error: any) => void` | No | Callback when an error occurs |
+| `onPlaybackComplete` | `() => void` | No | Callback when video playback finishes |
+| `onProgress` | `(data: { currentTime: number; duration: number }) => void` | No | Callback for playback progress |
 
-#### URL Events
-- `onUrlLoad`: Fired when the video is loaded
-- `onUrlProgress`: Fired during video playback
-- `onUrlEnd`: Fired when video playback ends
-- `onUrlReadyForDisplay`: Fired when the video is ready to display
+## Events
 
-#### WebRTC Events
-- `onWebRTCConnected`: Fired when WebRTC connection is established
-- `onWebRTCDisconnected`: Fired when WebRTC connection is lost
-- `onWebRTCStats`: Fired with WebRTC connection statistics
+Events can be listened to using `UnifiedPlayerEvents.addListener(eventType, listener)`. The available event types are defined in `UnifiedPlayerEventTypes`.
 
-#### Common Events
-- `onError`: Fired when an error occurs
+- `UnifiedPlayerEventTypes.READY` ('onReadyToPlay'): Fired when the player is ready to play.
+- `UnifiedPlayerEventTypes.ERROR` ('onError'): Fired when an error occurs.
+- `UnifiedPlayerEventTypes.PROGRESS` ('onProgress'): Fired during playback with current time and duration (`{ currentTime: number; duration: number }`).
+- `UnifiedPlayerEventTypes.COMPLETE` ('onPlaybackComplete'): Fired when video playback finishes.
+- `UnifiedPlayerEventTypes.STALLED` ('onPlaybackStalled'): Fired when playback stalls.
+- `UnifiedPlayerEventTypes.RESUMED` ('onPlaybackResumed'): Fired when playback resumes after stalling.
 
-### Commands
+## Methods
 
-The component supports the following commands:
+Control playback using the `UnifiedPlayer` object and the native tag of the `UnifiedPlayerView` instance (obtained via `ref.current.getNativeTag()`).
 
-```typescript
-// Seek to a specific time in the video
-seekUrl(viewRef: React.RefObject<YourUnifiedPlayerView>, timeSeconds: number): void;
-
-// Send a message through WebRTC data channel
-sendWebRTCMessage(viewRef: React.RefObject<YourUnifiedPlayerView>, message: string): void;
-```
+- `UnifiedPlayer.play(viewTag: number)`: Starts video playback.
+- `UnifiedPlayer.pause(viewTag: number)`: Pauses video playback.
+- `UnifiedPlayer.seekTo(viewTag: number, time: number)`: Seeks to a specific time in seconds.
+- `UnifiedPlayer.getCurrentTime(viewTag: number): Promise<number>`: Gets the current playback time in seconds.
+- `UnifiedPlayer.getDuration(viewTag: number): Promise<number>`: Gets the duration of the video in seconds.
 
 ## Development
 
