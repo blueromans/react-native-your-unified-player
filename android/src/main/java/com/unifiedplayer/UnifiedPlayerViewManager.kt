@@ -30,4 +30,9 @@ class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
   fun setLoop(view: UnifiedPlayerView, loop: Boolean) {
     view.setLoop(loop)
   }
+
+  @ReactProp(name = "isPaused")
+  fun setIsPaused(view: UnifiedPlayerView, isPaused: Boolean) {
+    view.setIsPaused(isPaused)
+  }
 }

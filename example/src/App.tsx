@@ -1,50 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   ScrollView,
+  findNodeHandle,
 } from 'react-native';
-import { UnifiedPlayerView } from 'react-native-unified-player';
-
-const STREAMING_URL_OPTIONS = [
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-];
+import { UnifiedPlayerView, UnifiedPlayer } from 'react-native-unified-player';
 
 function App(): React.JSX.Element {
-  const [videoUrl, setVideoUrl] = useState<string>(STREAMING_URL_OPTIONS[0]!);
-  const [inputUrl, setInputUrl] = useState('');
-  const [urlIndex, setUrlIndex] = useState(0); // Set initial index to 0
+  const playerRef = useRef(null);
+  const [videoUrl] = useState<string>(
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+  );
   const [autoplay, setAutoplay] = useState(true);
   const [loop, setLoop] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
-  const handleLoadUrl = (url: string) => {
-    setVideoUrl(url);
-  };
-
-  const handleNextUrl = () => {
-    const nextIndex = (urlIndex + 1) % STREAMING_URL_OPTIONS.length;
-    setUrlIndex(nextIndex);
-    setVideoUrl(STREAMING_URL_OPTIONS[nextIndex]!);
-  };
-
-  const handlePreviousUrl = () => {
-    const prevIndex =
-      (urlIndex - 1 + STREAMING_URL_OPTIONS.length) %
-      STREAMING_URL_OPTIONS.length;
-    setUrlIndex(prevIndex);
-    setVideoUrl(STREAMING_URL_OPTIONS[prevIndex]!);
+  const handleProgress = (data: { currentTime: number; duration: number }) => {
+    setCurrentTime(data.currentTime);
+    setDuration(data.duration);
   };
 
   const handleAutoplayToggle = () => {
@@ -55,32 +32,85 @@ function App(): React.JSX.Element {
     setLoop(!loop);
   };
 
+  const getPlayerViewTag = () => {
+    return findNodeHandle(playerRef.current);
+  };
+
+  const handlePlay = () => {
+    const viewTag = getPlayerViewTag();
+    if (viewTag) {
+      UnifiedPlayer.testMethod('Hello from React Native!');
+      UnifiedPlayer.play(viewTag);
+    }
+  };
+
+  const handlePause = () => {
+    const viewTag = getPlayerViewTag();
+    if (viewTag) {
+      UnifiedPlayer.pause(viewTag);
+    }
+  };
+
+  const handleSeekTo = (time: number) => {
+    const viewTag = getPlayerViewTag();
+    if (viewTag) {
+      UnifiedPlayer.seekTo(viewTag, time);
+    }
+  };
+
+  const handleGetCurrentTime = async () => {
+    const viewTag = getPlayerViewTag();
+    if (viewTag) {
+      const time = await UnifiedPlayer.getCurrentTime(viewTag);
+      console.log('Current Time:', time);
+    }
+  };
+
+  const handleGetDuration = async () => {
+    const viewTag = getPlayerViewTag();
+    if (viewTag) {
+      const duration = await UnifiedPlayer.getDuration(viewTag);
+      console.log('Duration:', duration);
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Unified Player Example</Text>
 
       <UnifiedPlayerView
+        ref={playerRef}
         videoUrl={videoUrl}
         autoplay={autoplay}
         loop={loop}
+        authToken="YOUR_AUTH_TOKEN_HERE" // Replace with your actual auth token
         style={styles.player}
         onReadyToPlay={() => console.log('Ready to play')}
         onPlaybackComplete={() => console.log('Playback complete')}
         onError={(event: { nativeEvent: any }) =>
           console.error('Player Error:', event.nativeEvent)
         }
+        onProgress={handleProgress}
       />
 
       <View style={styles.controls}>
-        <Text style={styles.currentUrlText}>Current URL Index: {urlIndex}</Text>
         <Text style={styles.currentUrlText}>Current URL: {videoUrl}</Text>
+        <Text style={styles.currentUrlText}>
+          Progress: {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
+        </Text>
 
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.button} onPress={handlePreviousUrl}>
-            <Text style={styles.buttonText}>Previous URL</Text>
+          <TouchableOpacity style={styles.button} onPress={handlePlay}>
+            <Text style={styles.buttonText}>Play</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={handleNextUrl}>
-            <Text style={styles.buttonText}>Next URL</Text>
+          <TouchableOpacity style={styles.button} onPress={handlePause}>
+            <Text style={styles.buttonText}>Pause</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => handleSeekTo(10)}
+          >
+            <Text style={styles.buttonText}>Seek to 10s</Text>
           </TouchableOpacity>
         </View>
 
@@ -98,19 +128,17 @@ function App(): React.JSX.Element {
           </TouchableOpacity>
         </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Enter custom video URL"
-          value={inputUrl}
-          onChangeText={setInputUrl}
-          placeholderTextColor="#888"
-        />
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => handleLoadUrl(inputUrl)}
-        >
-          <Text style={styles.buttonText}>Load Custom URL</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleGetCurrentTime}
+          >
+            <Text style={styles.buttonText}>Get Current Time</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={handleGetDuration}>
+            <Text style={styles.buttonText}>Get Duration</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );

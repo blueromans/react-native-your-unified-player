@@ -1,3 +1,4 @@
+import { type Ref, type ElementRef, forwardRef } from 'react'; // Import from 'react'
 import {
   requireNativeComponent,
   UIManager,
@@ -5,7 +6,7 @@ import {
   type ViewStyle,
   NativeModules,
   NativeEventEmitter,
-} from 'react-native';
+} from 'react-native'; // Import from 'react-native'
 
 const LINKING_ERROR =
   `The package 'react-native-unified-player' doesn't seem to be linked. Make sure: \n\n` +
@@ -29,6 +30,9 @@ export type UnifiedPlayerProps = {
   // Should video loop when finished
   loop?: boolean;
 
+  // Is the player currently paused
+  isPaused?: boolean;
+
   // Optional auth token for protected streams
   authToken?: string;
 
@@ -48,23 +52,33 @@ export type UnifiedPlayerProps = {
 // Name of the native component
 const ComponentName = 'UnifiedPlayerView';
 
+// Props for the native component including ref
+type NativeUnifiedPlayerViewProps = UnifiedPlayerProps & {
+  ref?: Ref<ElementRef<typeof NativeUnifiedPlayerView>>;
+};
+
 // Native component import
 const NativeUnifiedPlayerView =
   UIManager.getViewManagerConfig(ComponentName) != null
-    ? requireNativeComponent<UnifiedPlayerProps>(ComponentName)
+    ? requireNativeComponent<NativeUnifiedPlayerViewProps>(ComponentName)
     : () => {
         throw new Error(LINKING_ERROR);
       };
 
 // Native module for additional control methods
 const UnifiedPlayerModule = NativeModules.UnifiedPlayerModule;
+// Native module for events
+const UnifiedPlayerEventEmitterModule = NativeModules.UnifiedPlayerEvents;
 
 /**
  * UnifiedPlayerView component for video playback
  */
-export const UnifiedPlayerView = (props: UnifiedPlayerProps) => {
-  return <NativeUnifiedPlayerView {...props} />;
-};
+export const UnifiedPlayerView = forwardRef<
+  ElementRef<typeof NativeUnifiedPlayerView>,
+  UnifiedPlayerProps
+>((props, ref) => {
+  return <NativeUnifiedPlayerView {...props} ref={ref} />;
+});
 
 /**
  * API methods for controlling playback
@@ -106,13 +120,20 @@ export const UnifiedPlayer = {
     }
     return Promise.resolve(0);
   },
+
+  // Test method
+  testMethod: (message: string) => {
+    if (UnifiedPlayerModule?.testMethod) {
+      UnifiedPlayerModule.testMethod(message);
+    }
+  },
 };
 
 // Events emitter for native events
 let eventEmitter: NativeEventEmitter | null = null;
 
-if (UnifiedPlayerModule) {
-  eventEmitter = new NativeEventEmitter(UnifiedPlayerModule);
+if (UnifiedPlayerEventEmitterModule) {
+  eventEmitter = new NativeEventEmitter(UnifiedPlayerEventEmitterModule);
 }
 
 export const UnifiedPlayerEvents = {

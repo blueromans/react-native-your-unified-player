@@ -14,6 +14,7 @@
 @property (nonatomic, copy) NSString *authToken;
 @property (nonatomic, assign) BOOL autoplay;
 @property (nonatomic, assign) BOOL loop;
+@property (nonatomic, assign) BOOL isPaused; // Add isPaused property
 @property (nonatomic, strong) NSArray *mediaOptions;
 @property (nonatomic, weak) RCTBridge *bridge;
 @property (nonatomic, assign) VLCMediaPlayerState previousState;
@@ -446,6 +447,21 @@ static UnifiedPlayerModule *eventEmitter = nil;
     _loop = loop;
 }
 
+- (void)setIsPaused:(BOOL)isPaused {
+    if (_isPaused != isPaused) {
+        _isPaused = isPaused;
+        if (_player) {
+            if (_isPaused && _player.isPlaying) {
+                [_player pause];
+                RCTLogInfo(@"[UnifiedPlayerViewManager] Paused via isPaused prop");
+            } else if (!_isPaused && !_player.isPlaying) {
+                [_player play];
+                RCTLogInfo(@"[UnifiedPlayerViewManager] Played via isPaused prop");
+            }
+        }
+    }
+}
+
 - (void)setAuthToken:(NSString *)authToken {
     if (_authToken != authToken) {
         _authToken = [authToken copy];
@@ -665,6 +681,12 @@ RCT_CUSTOM_VIEW_PROPERTY(authToken, NSString, UnifiedPlayerUIView)
 RCT_CUSTOM_VIEW_PROPERTY(mediaOptions, NSArray, UnifiedPlayerUIView)
 {
     view.mediaOptions = [RCTConvert NSArray:json];
+}
+
+// isPaused property
+RCT_CUSTOM_VIEW_PROPERTY(isPaused, BOOL, UnifiedPlayerUIView)
+{
+    view.isPaused = [RCTConvert BOOL:json];
 }
 
 @end

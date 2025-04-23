@@ -42,6 +42,7 @@ class UnifiedPlayerModule(private val reactContext: ReactApplicationContext) : R
     @ReactMethod
     fun pause(viewId: Int) {
         try {
+            Log.d(TAG, "pause called in module for viewId: $viewId") // Add this log
             Log.d(TAG, "Pause command received for view $viewId")
             reactContext.runOnUiQueueThread {
                 getPlayerView(viewId)?.pause()
@@ -90,4 +91,9 @@ class UnifiedPlayerModule(private val reactContext: ReactApplicationContext) : R
             promise.reject("ERROR", "Failed to get duration: ${e.message}")
         }
     }
-} 
+
+    @ReactMethod
+    fun testMethod(message: String) {
+        Log.d(TAG, "Test method called with message: $message")
+    }
+}

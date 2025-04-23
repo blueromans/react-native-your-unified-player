@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
 import android.util.Log
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.widget.FrameLayout
 import com.facebook.react.bridge.Arguments
@@ -28,8 +30,27 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     private var loop: Boolean = false
     private var playerView: PlayerView
     private var player: ExoPlayer? = null
-    private var isPlaying = false
     private var currentProgress = 0
+
+    private val progressHandler = Handler(Looper.getMainLooper())
+    private val progressRunnable: Runnable = object : Runnable {
+        override fun run() {
+            player?.let {
+                val currentTime = it.currentPosition.toFloat() / 1000f
+                val duration = it.duration.toFloat() / 1000f
+
+                if (duration > 0) {
+                    val event = Arguments.createMap().apply {
+                        putDouble("currentTime", currentTime.toDouble())
+                        putDouble("duration", duration.toDouble())
+                    }
+                    sendEvent(UnifiedPlayerEventEmitter.EVENT_PROGRESS, event)
+                }
+            }
+            // Schedule the next update
+            progressHandler.postDelayed(this, 250) // Update every 250ms
+        }
+    }
 
     init {
         setBackgroundColor(Color.BLACK)
@@ -51,12 +72,6 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         // Add logging for playerView dimensions and post play call
         playerView.post {
             Log.d(TAG, "PlayerView dimensions after addView: width=${playerView.width}, height=${playerView.height}")
-            // Post play call to ensure PlayerView is laid out
-            if (autoplay) {
-                 player?.play()
-                 isPlaying = true
-                 Log.d(TAG, "Autoplay: player?.play() called after layout")
-            }
         }
 
         player?.addListener(object : Player.Listener {
@@ -66,7 +81,6 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                     Player.STATE_READY -> {
                         Log.d(TAG, "ExoPlayer STATE_READY")
                         sendEvent("onReadyToPlay", Arguments.createMap())
-                        // Removed custom autoplay logic, relying on player?.playWhenReady
                     }
                     Player.STATE_ENDED -> {
                         Log.d(TAG, "ExoPlayer STATE_ENDED")
@@ -208,16 +222,23 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         player?.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
     }
 
+    fun setIsPaused(isPaused: Boolean) {
+        Log.d(TAG, "setIsPaused called with value: $isPaused")
+        if (isPaused) {
+            player?.pause()
+        } else {
+            player?.play()
+        }
+    }
+
     fun play() {
         Log.d(TAG, "Play called")
         player?.play()
-        isPlaying = true
     }
 
     fun pause() {
-        Log.d(TAG, "Pause called")
+        Log.d(TAG, "Pause called from module") // Add this log
         player?.pause()
-        isPlaying = false
     }
 
     fun seekTo(time: Float) {
@@ -250,16 +271,13 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         super.onAttachedToWindow()
         Log.d(TAG, "UnifiedPlayerView onAttachedToWindow")
         playerView.setPlayer(player)
-        // Autoplay logic can remain in post block or be moved here
-        if (autoplay) {
-             player?.play()
-             isPlaying = true
-             Log.d(TAG, "Autoplay: player?.play() called in onAttachedToWindow")
-        }
+        progressHandler.post(progressRunnable) // Start progress updates
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        Log.d(TAG, "UnifiedPlayerView onDetachedFromWindow")
+        progressHandler.removeCallbacks(progressRunnable) // Stop progress updates
         player?.release()
     }
 }
