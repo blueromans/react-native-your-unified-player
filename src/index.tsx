@@ -234,4 +234,33 @@ export const UnifiedPlayer = {
       return Promise.reject(error);
     }
   },
+
+  /**
+   * Capture the current video frame as a base64 encoded image
+   * @param viewTag - The tag of the player view
+   * @returns Promise resolving to the base64 encoded image string
+   */
+  capture: (viewTag: number): Promise<string> => {
+    try {
+      console.log('UnifiedPlayer.capture called with viewTag:', viewTag);
+      return UnifiedPlayerModule.capture(viewTag)
+        .then((base64String: string) => {
+          console.log('Native capture method called successfully');
+          return base64String;
+        })
+        .catch((error: any) => {
+          console.log(
+            'Error calling capture:',
+            error instanceof Error ? error.message : String(error)
+          );
+          throw error;
+        });
+    } catch (error) {
+      console.log(
+        'Error calling capture:',
+        error instanceof Error ? error.message : String(error)
+      );
+      return Promise.reject(error);
+    }
+  },
 };

@@ -8,37 +8,7 @@
 #import <React/RCTComponent.h>
 #import <MobileVLCKit/MobileVLCKit.h>
 #import "UnifiedPlayerModule.h"
-
-// Forward declarations
-@interface UnifiedPlayerUIView : UIView <VLCMediaPlayerDelegate>
-@property (nonatomic, strong) VLCMediaPlayer *player;
-@property (nonatomic, copy) NSString *videoUrlString;
-@property (nonatomic, assign) BOOL autoplay;
-@property (nonatomic, assign) BOOL loop;
-@property (nonatomic, assign) BOOL isPaused;
-@property (nonatomic, strong) NSArray *mediaOptions;
-@property (nonatomic, weak) RCTBridge *bridge;
-@property (nonatomic, assign) VLCMediaPlayerState previousState;
-@property (nonatomic, assign) BOOL hasRenderedVideo;
-
-// Event callbacks
-@property (nonatomic, copy) RCTDirectEventBlock onLoadStart;
-@property (nonatomic, copy) RCTDirectEventBlock onReadyToPlay;
-@property (nonatomic, copy) RCTDirectEventBlock onError;
-@property (nonatomic, copy) RCTDirectEventBlock onProgress;
-@property (nonatomic, copy) RCTDirectEventBlock onPlaybackComplete;
-@property (nonatomic, copy) RCTDirectEventBlock onPlaybackStalled;
-@property (nonatomic, copy) RCTDirectEventBlock onPlaybackResumed;
-@property (nonatomic, copy) RCTDirectEventBlock onPlaying;
-@property (nonatomic, copy) RCTDirectEventBlock onPaused;
-
-- (void)setupWithVideoUrlString:(NSString *)videoUrlString;
-- (void)play;
-- (void)pause;
-- (void)seekToTime:(NSNumber *)timeNumber;
-- (float)getCurrentTime;
-- (float)getDuration;
-@end
+#import "UnifiedPlayerUIView.h"
 
 // Main player view implementation
 @implementation UnifiedPlayerUIView
@@ -179,13 +149,15 @@
         self.onPlaying(body);
     } else if ([eventName isEqualToString:@"onPaused"] && self.onPaused) {
         self.onPaused(body);
+    } else {
+         RCTLogInfo(@"[UnifiedPlayerViewManager] No direct event block found for event: %@", eventName);
     }
     
-    // Also send events through the module for backward compatibility
-    UnifiedPlayerModule *eventEmitter = [self.bridge moduleForClass:[UnifiedPlayerModule class]];
-    if (eventEmitter != nil) {
-        [eventEmitter sendEventWithName:eventName body:body];
-    }
+    // Removed the redundant event sending via UnifiedPlayerModule emitter
+    // UnifiedPlayerModule *eventEmitter = [self.bridge moduleForClass:[UnifiedPlayerModule class]];
+    // if (eventEmitter != nil) {
+    //     [eventEmitter sendEventWithName:eventName body:body];
+    // }
 }
 
 - (void)setupWithVideoUrlString:(NSString *)videoUrlString {
@@ -369,11 +341,49 @@
 }
 
 - (float)getCurrentTime {
-    return _player.time.intValue / 1000.0f; // Convert from milliseconds to seconds
+    if (_player) {
+        return _player.time.intValue / 1000.0f;
+    }
+    return 0.0f;
 }
 
 - (float)getDuration {
-    return _player.media.length.intValue / 1000.0f; // Convert from milliseconds to seconds
+    if (_player && _player.media) {
+        return _player.media.length.intValue / 1000.0f;
+    }
+    return 0.0f;
+}
+
+- (void)captureFrameWithCompletion:(void (^)(NSString * _Nullable base64String, NSError * _Nullable error))completion {
+    if (!_player || !_player.drawable) {
+        NSError *error = [NSError errorWithDomain:@"UnifiedPlayerUIView" code:100 userInfo:@{NSLocalizedDescriptionKey: @"Player not initialized"}];
+        if (completion) {
+            completion(nil, error);
+        }
+        return;
+    }
+    
+    // Create a snapshot of the current view
+    UIGraphicsBeginImageContextWithOptions(self.bounds.size, NO, [UIScreen mainScreen].scale);
+    [self drawViewHierarchyInRect:self.bounds afterScreenUpdates:YES];
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    
+    if (!image) {
+        NSError *error = [NSError errorWithDomain:@"UnifiedPlayerUIView" code:101 userInfo:@{NSLocalizedDescriptionKey: @"Failed to capture frame"}];
+        if (completion) {
+            completion(nil, error);
+        }
+        return;
+    }
+    
+    // Convert to base64
+    NSData *imageData = UIImageJPEGRepresentation(image, 0.8);
+    NSString *base64String = [imageData base64EncodedStringWithOptions:0];
+    
+    if (completion) {
+        completion(base64String, nil);
+    }
 }
 
 - (void)setAutoplay:(BOOL)autoplay {
@@ -410,10 +420,17 @@
     if (duration > 0 && !isnan(duration)) {
         [self sendProgressEvent:currentTime duration:duration];
     }
+    RCTLogInfo(@"[UnifiedPlayerViewManager] mediaPlayerTimeChanged - CurrentTime: %f, Duration: %f", currentTime, duration); // Added Log
+    
+    // Avoid sending progress events for invalid durations
+    if (duration > 0 && !isnan(duration)) {
+        [self sendProgressEvent:currentTime duration:duration];
+    }
 }
 
 - (void)mediaPlayerStateChanged:(NSNotification *)notification {
     VLCMediaPlayerState state = _player.state;
+    RCTLogInfo(@"[UnifiedPlayerViewManager] mediaPlayerStateChanged - New State: %d", state); // Added Log
     
     // Debug information for video output
     if (state == VLCMediaPlayerStatePlaying) {

@@ -8,8 +8,13 @@ import {
   findNodeHandle,
   Alert,
   NativeModules,
+  Image, // Import Image component
 } from 'react-native';
-import { UnifiedPlayerView, UnifiedPlayer } from 'react-native-unified-player';
+import {
+  UnifiedPlayerView,
+  UnifiedPlayer,
+  UnifiedPlayerEventTypes, // Import event types
+} from 'react-native-unified-player';
 
 function App(): React.JSX.Element {
   const playerRef = useRef(null);
@@ -31,6 +36,8 @@ function App(): React.JSX.Element {
 
   // Track if progress events are being received
   const [progressEventsReceived, setProgressEventsReceived] = useState(false);
+  // State to store the captured image base64 string
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
   const getPlayerViewTag = () => {
     return findNodeHandle(playerRef.current);
@@ -84,18 +91,18 @@ function App(): React.JSX.Element {
       clearTimeout(progressCheckTimer);
       console.log('App component unmounted');
     };
-  }, [progressEventsReceived, reinitializePlayer]);
+  }, [progressEventsReceived, reinitializePlayer]); // Added reinitializePlayer back
 
   const handleProgress = (data: any) => {
-    console.log('Progress event received:', data);
+    // console.log('Progress event received:', data); // Reduce log verbosity
 
     // Log only the essential properties to avoid cyclical structure issues
-    console.log('Progress event properties:', {
-      currentTime: data.nativeEvent?.currentTime,
-      duration: data.nativeEvent?.duration,
-      hasNativeEvent: !!data.nativeEvent,
-      nativeEventKeys: data.nativeEvent ? Object.keys(data.nativeEvent) : [],
-    });
+    // console.log('Progress event properties:', {
+    //   currentTime: data.nativeEvent?.currentTime,
+    //   duration: data.nativeEvent?.duration,
+    //   hasNativeEvent: !!data.nativeEvent,
+    //   nativeEventKeys: data.nativeEvent ? Object.keys(data.nativeEvent) : [],
+    // });
 
     // Check if nativeEvent exists and contains the data
     const eventData = data.nativeEvent || data;
@@ -119,214 +126,20 @@ function App(): React.JSX.Element {
         console.log('Progress events are being received with valid data');
       }
     } else {
-      console.log(
-        'Progress event has invalid duration:',
-        eventData ? eventData.duration : 'eventData is null/undefined'
-      );
+      // console.log( // Reduce log verbosity
+      //   'Progress event has invalid duration:',
+      //   eventData ? eventData.duration : 'eventData is null/undefined'
+      // );
     }
   };
 
-  const handleAutoplayToggle = () => {
-    setAutoplay(!autoplay);
+  // --- Event Handlers ---
+  const handleLoadStart = () => {
+    console.log(`Event: ${UnifiedPlayerEventTypes.LOAD_START}`);
   };
 
-  const handleLoopToggle = () => {
-    setLoop(!loop);
-  };
-
-  const handlePauseToggle = () => {
-    setIsPaused(!isPaused);
-  };
-
-  const handlePlay = () => {
-    const viewTag = getPlayerViewTag();
-    console.log('Play button pressed, viewTag:', viewTag);
-
-    // Debug: Log the native module again
-    console.log(
-      'UnifiedPlayer module when play is called:',
-      NativeModules.UnifiedPlayer
-    );
-
-    if (viewTag !== null) {
-      UnifiedPlayer.play(viewTag)
-        .then(() => {
-          console.log('Play successful');
-          setIsPaused(false);
-        })
-        .catch((error) => {
-          console.log('Error calling play method:', error);
-          Alert.alert('Play Error', String(error));
-        });
-    } else {
-      console.log('Could not get player view tag for play');
-    }
-  };
-
-  const handlePause = () => {
-    const viewTag = getPlayerViewTag();
-    console.log('Pause button pressed, viewTag:', viewTag);
-
-    // Debug: Log the native module again
-    console.log(
-      'UnifiedPlayer module when pause is called:',
-      NativeModules.UnifiedPlayer
-    );
-
-    if (viewTag !== null) {
-      UnifiedPlayer.pause(viewTag)
-        .then(() => {
-          console.log('Pause successful');
-          setIsPaused(true);
-        })
-        .catch((error) => {
-          console.log('Error calling pause method:', error);
-          Alert.alert('Pause Error', String(error));
-        });
-    } else {
-      console.log('Could not get player view tag for pause');
-    }
-  };
-
-  // Improved seek method using promises
-  const handleSeekTo = (time: number) => {
-    console.log('Seek button pressed, attempting to seek to:', time);
-
-    // Check if we've received progress events
-    if (!progressEventsReceived) {
-      console.warn('Cannot seek: No progress events received yet');
-      Alert.alert(
-        'Cannot Seek',
-        'The player is not ready yet. Please wait a moment and try again.'
-      );
-      return;
-    }
-
-    const viewTag = getPlayerViewTag();
-    if (viewTag !== null) {
-      // Store current state
-      const wasPlaying = !isPaused;
-
-      // 1. Pause the player if it's playing
-      if (wasPlaying) {
-        UnifiedPlayer.pause(viewTag)
-          .then(() => {
-            // 2. Perform the seek
-            return UnifiedPlayer.seekTo(viewTag, time);
-          })
-          .then(() => {
-            // 3. Resume playback if it was playing before
-            if (wasPlaying) {
-              return UnifiedPlayer.play(viewTag);
-            }
-            return Promise.resolve(true);
-          })
-          .then(() => {
-            console.log('Seek operation completed successfully');
-          })
-          .catch((error) => {
-            console.warn('Seek operation failed:', error);
-            Alert.alert('Seek Error', String(error));
-          });
-      } else {
-        // If already paused, just seek
-        UnifiedPlayer.seekTo(viewTag, time)
-          .then(() => {
-            console.log('Seek operation completed successfully');
-          })
-          .catch((error) => {
-            console.warn('Seek operation failed:', error);
-            Alert.alert('Seek Error', String(error));
-          });
-      }
-    } else {
-      console.log('Could not get player view tag for seek');
-    }
-  };
-
-  // JavaScript-based workaround for getCurrentTime
-  const handleGetCurrentTime = async () => {
-    console.log('Get current time button pressed');
-
-    if (!progressEventsReceived) {
-      console.warn('Cannot get current time: No progress events received yet');
-      Alert.alert(
-        'Cannot Get Time',
-        'The player is not ready yet. Please wait a moment and try again.'
-      );
-      return;
-    }
-
-    try {
-      // Try the native method first
-      const viewTag = getPlayerViewTag();
-      if (viewTag !== null) {
-        const nativeTime = await UnifiedPlayer.getCurrentTime(viewTag);
-        console.log('Native getCurrentTime result:', nativeTime);
-
-        // If native method returns a valid time, use it
-        if (nativeTime > 0) {
-          Alert.alert(
-            'Current Time',
-            `Native: ${nativeTime.toFixed(2)} seconds`
-          );
-          return;
-        }
-      }
-
-      // Fallback to the cached value from progress events
-      const jsTime = lastProgressTimeRef.current;
-      console.log('JS-based getCurrentTime result:', jsTime);
-      Alert.alert('Current Time', `JS Fallback: ${jsTime.toFixed(2)} seconds`);
-    } catch (error) {
-      console.log('Error in getCurrentTime:', error);
-      Alert.alert('Error', `Failed to get current time: ${error}`);
-    }
-  };
-
-  // JavaScript-based workaround for getDuration
-  const handleGetDuration = async () => {
-    console.log('Get duration button pressed');
-
-    if (!progressEventsReceived) {
-      console.warn('Cannot get duration: No progress events received yet');
-      Alert.alert(
-        'Cannot Get Duration',
-        'The player is not ready yet. Please wait a moment and try again.'
-      );
-      return;
-    }
-
-    try {
-      // Try the native method first
-      const viewTag = getPlayerViewTag();
-      if (viewTag !== null) {
-        const nativeDuration = await UnifiedPlayer.getDuration(viewTag);
-        console.log('Native getDuration result:', nativeDuration);
-
-        // If native method returns a valid duration, use it
-        if (nativeDuration > 0) {
-          Alert.alert(
-            'Duration',
-            `Native: ${nativeDuration.toFixed(2)} seconds`
-          );
-          return;
-        }
-      }
-
-      // Fallback to the cached value from progress events
-      const jsDuration = lastDurationRef.current;
-      console.log('JS-based getDuration result:', jsDuration);
-      Alert.alert('Duration', `JS Fallback: ${jsDuration.toFixed(2)} seconds`);
-    } catch (error) {
-      console.error('Error in getDuration:', error);
-      Alert.alert('Error', `Failed to get duration: ${error}`);
-    }
-  };
-
-  // Handle player ready event
   const handleReadyToPlay = () => {
-    console.log('Player is ready to play');
+    console.log(`Event: ${UnifiedPlayerEventTypes.READY}`);
     setIsPlayerReady(true);
 
     // Start playing to initialize progress events
@@ -367,6 +180,209 @@ function App(): React.JSX.Element {
     }
   };
 
+  const handleError = (event: { nativeEvent: any }) => {
+    console.error(`Event: ${UnifiedPlayerEventTypes.ERROR}`, event.nativeEvent);
+    Alert.alert('Player Error', JSON.stringify(event.nativeEvent));
+  };
+
+  const handlePlaybackComplete = () => {
+    console.log(`Event: ${UnifiedPlayerEventTypes.COMPLETE}`);
+  };
+
+  const handlePlaybackStalled = () => {
+    console.log(`Event: ${UnifiedPlayerEventTypes.STALLED}`);
+  };
+
+  const handlePlaybackResumed = () => {
+    console.log(`Event: ${UnifiedPlayerEventTypes.RESUMED}`);
+  };
+
+  const handlePlaying = () => {
+    console.log(`Event: ${UnifiedPlayerEventTypes.PLAYING}`);
+  };
+
+  const handlePaused = () => {
+    console.log(`Event: ${UnifiedPlayerEventTypes.PAUSED}`);
+  };
+
+  // --- Capture Logic ---
+  const handleCapture = async () => {
+    const viewTag = getPlayerViewTag();
+    if (viewTag !== null) {
+      console.log('Capture button pressed, viewTag:', viewTag);
+      try {
+        const base64String = await UnifiedPlayer.capture(viewTag);
+        console.log('Capture successful, base64 length:', base64String.length);
+        setCapturedImage(`data:image/png;base64,${base64String}`); // Prepend data URI scheme
+      } catch (error) {
+        console.error('Capture failed:', error);
+        Alert.alert('Capture Error', String(error));
+        setCapturedImage(null); // Clear previous image on error
+      }
+    } else {
+      console.log('Could not get player view tag for capture');
+      Alert.alert('Capture Error', 'Could not find player view.');
+    }
+  };
+
+  // --- Control Handlers ---
+  const handleAutoplayToggle = () => {
+    setAutoplay(!autoplay);
+  };
+
+  const handleLoopToggle = () => {
+    setLoop(!loop);
+  };
+
+  const handlePauseToggle = () => {
+    setIsPaused(!isPaused);
+  };
+
+  const handlePlay = () => {
+    const viewTag = getPlayerViewTag();
+    console.log('Play button pressed, viewTag:', viewTag);
+
+    if (viewTag !== null) {
+      UnifiedPlayer.play(viewTag)
+        .then(() => {
+          console.log('Play successful');
+          setIsPaused(false);
+        })
+        .catch((error) => {
+          console.log('Error calling play method:', error);
+          Alert.alert('Play Error', String(error));
+        });
+    } else {
+      console.log('Could not get player view tag for play');
+    }
+  };
+
+  const handlePause = () => {
+    const viewTag = getPlayerViewTag();
+    console.log('Pause button pressed, viewTag:', viewTag);
+
+    if (viewTag !== null) {
+      UnifiedPlayer.pause(viewTag)
+        .then(() => {
+          console.log('Pause successful');
+          setIsPaused(true);
+        })
+        .catch((error) => {
+          console.log('Error calling pause method:', error);
+          Alert.alert('Pause Error', String(error));
+        });
+    } else {
+      console.log('Could not get player view tag for pause');
+    }
+  };
+
+  const handleSeekTo = (time: number) => {
+    console.log('Seek button pressed, attempting to seek to:', time);
+
+    if (!progressEventsReceived) {
+      console.warn('Cannot seek: No progress events received yet');
+      Alert.alert(
+        'Cannot Seek',
+        'The player is not ready yet. Please wait a moment and try again.'
+      );
+      return;
+    }
+
+    const viewTag = getPlayerViewTag();
+    if (viewTag !== null) {
+      const wasPlaying = !isPaused;
+      if (wasPlaying) {
+        UnifiedPlayer.pause(viewTag)
+          .then(() => UnifiedPlayer.seekTo(viewTag, time))
+          .then(() =>
+            wasPlaying ? UnifiedPlayer.play(viewTag) : Promise.resolve(true)
+          )
+          .then(() => console.log('Seek operation completed successfully'))
+          .catch((error) => {
+            console.warn('Seek operation failed:', error);
+            Alert.alert('Seek Error', String(error));
+          });
+      } else {
+        UnifiedPlayer.seekTo(viewTag, time)
+          .then(() => console.log('Seek operation completed successfully'))
+          .catch((error) => {
+            console.warn('Seek operation failed:', error);
+            Alert.alert('Seek Error', String(error));
+          });
+      }
+    } else {
+      console.log('Could not get player view tag for seek');
+    }
+  };
+
+  const handleGetCurrentTime = async () => {
+    console.log('Get current time button pressed');
+
+    if (!progressEventsReceived) {
+      console.warn('Cannot get current time: No progress events received yet');
+      Alert.alert(
+        'Cannot Get Time',
+        'The player is not ready yet. Please wait a moment and try again.'
+      );
+      return;
+    }
+
+    try {
+      const viewTag = getPlayerViewTag();
+      if (viewTag !== null) {
+        const nativeTime = await UnifiedPlayer.getCurrentTime(viewTag);
+        console.log('Native getCurrentTime result:', nativeTime);
+        if (nativeTime > 0) {
+          Alert.alert(
+            'Current Time',
+            `Native: ${nativeTime.toFixed(2)} seconds`
+          );
+          return;
+        }
+      }
+      const jsTime = lastProgressTimeRef.current;
+      console.log('JS-based getCurrentTime result:', jsTime);
+      Alert.alert('Current Time', `JS Fallback: ${jsTime.toFixed(2)} seconds`);
+    } catch (error) {
+      console.log('Error in getCurrentTime:', error);
+      Alert.alert('Error', `Failed to get current time: ${error}`);
+    }
+  };
+
+  const handleGetDuration = async () => {
+    console.log('Get duration button pressed');
+
+    if (!progressEventsReceived) {
+      console.warn('Cannot get duration: No progress events received yet');
+      Alert.alert(
+        'Cannot Get Duration',
+        'The player is not ready yet. Please wait a moment and try again.'
+      );
+      return;
+    }
+
+    try {
+      const viewTag = getPlayerViewTag();
+      if (viewTag !== null) {
+        const nativeDuration = await UnifiedPlayer.getDuration(viewTag);
+        console.log('Native getDuration result:', nativeDuration);
+        if (nativeDuration > 0) {
+          Alert.alert(
+            'Duration',
+            `Native: ${nativeDuration.toFixed(2)} seconds`
+          );
+          return;
+        }
+      }
+      const jsDuration = lastDurationRef.current;
+      console.log('JS-based getDuration result:', jsDuration);
+      Alert.alert('Duration', `JS Fallback: ${jsDuration.toFixed(2)} seconds`);
+    } catch (error) {
+      console.error('Error in getDuration:', error);
+      Alert.alert('Error', `Failed to get duration: ${error}`);
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Unified Player Example</Text>
@@ -378,13 +394,16 @@ function App(): React.JSX.Element {
         loop={loop}
         isPaused={isPaused}
         style={styles.player}
+        // Add all event handlers
+        onLoadStart={handleLoadStart}
         onReadyToPlay={handleReadyToPlay}
-        onPlaybackComplete={() => console.log('Playback complete')}
-        onError={(event: { nativeEvent: any }) => {
-          console.error('Player Error:', event.nativeEvent);
-          Alert.alert('Player Error', JSON.stringify(event.nativeEvent));
-        }}
+        onError={handleError}
         onProgress={handleProgress}
+        onPlaybackComplete={handlePlaybackComplete}
+        onPlaybackStalled={handlePlaybackStalled}
+        onPlaybackResumed={handlePlaybackResumed}
+        onPlaying={handlePlaying}
+        onPaused={handlePaused}
       />
 
       <View style={styles.controls}>
@@ -448,6 +467,25 @@ function App(): React.JSX.Element {
             <Text style={styles.buttonText}>Reinitialize Player</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Add Capture Button */}
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.button} onPress={handleCapture}>
+            <Text style={styles.buttonText}>Capture Frame</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Display Captured Image */}
+        {capturedImage && (
+          <View style={styles.captureContainer}>
+            <Text style={styles.captureTitle}>Captured Frame:</Text>
+            <Image
+              source={{ uri: capturedImage }}
+              style={styles.capturedImage}
+              resizeMode="contain"
+            />
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -518,6 +556,24 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     color: '#333',
     backgroundColor: '#fff',
+  },
+  captureContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+    width: '90%',
+  },
+  captureTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  capturedImage: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    backgroundColor: '#e0e0e0',
   },
 });
 

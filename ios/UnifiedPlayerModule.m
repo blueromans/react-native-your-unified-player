@@ -1,4 +1,5 @@
 #import "UnifiedPlayerModule.h"
+#import "UnifiedPlayerUIView.h"
 #import <React/RCTLog.h>
 #import <React/RCTBridgeModule.h>
 #import <React/RCTEventEmitter.h>
@@ -175,35 +176,43 @@ RCT_EXPORT_METHOD(getCurrentTime:(nonnull NSNumber *)reactTag
 // Get video duration
 RCT_EXPORT_METHOD(getDuration:(nonnull NSNumber *)reactTag
                   resolver:(RCTPromiseResolveBlock)resolve
-                  rejecter:(RCTPromiseRejectBlock)reject) {
-    [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *,UIView *> *viewRegistry) {
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {
         UIView *view = viewRegistry[reactTag];
-        if (!view) {
-            reject(@"error", @"Invalid view for tag", nil);
+        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
+            RCTLogError(@"Invalid view returned from registry, expecting UnifiedPlayerUIView, got: %@", view);
+            reject(@"E_INVALID_VIEW", @"Expected UnifiedPlayerUIView", nil);
+        } else {
+            UnifiedPlayerUIView *playerView = (UnifiedPlayerUIView *)view;
+            float duration = [playerView getDuration];
+            resolve(@(duration));
+        }
+    }];
+}
+
+RCT_EXPORT_METHOD(capture:(nonnull NSNumber *)reactTag
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {
+        UIView *view = viewRegistry[reactTag];
+        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
+            RCTLogError(@"Invalid view returned from registry, expecting UnifiedPlayerUIView, got: %@", view);
+            reject(@"E_INVALID_VIEW", @"Expected UnifiedPlayerUIView", nil);
             return;
         }
         
-        // Cast to UnifiedPlayerUIView class
-        Class UnifiedPlayerUIViewClass = NSClassFromString(@"UnifiedPlayerUIView");
-        if (![view isKindOfClass:UnifiedPlayerUIViewClass]) {
-            reject(@"error", @"View is not a UnifiedPlayerUIView", nil);
-            return;
-        }
-        
-        // Use direct method call with proper type safety
-        float duration = 0;
-        @try {
-            // Use direct ivar access for safety
-            VLCMediaPlayer *player = [view valueForKey:@"player"];
-            if (player && player.media) {
-                duration = player.media.length.intValue / 1000.0f;
-                resolve(@(duration));
+        UnifiedPlayerUIView *playerView = (UnifiedPlayerUIView *)view;
+        [playerView captureFrameWithCompletion:^(NSString * _Nullable base64String, NSError * _Nullable error) {
+            if (error) {
+                reject(@"E_CAPTURE_FAILED", error.localizedDescription, error);
+            } else if (base64String) {
+                resolve(base64String);
             } else {
-                reject(@"error", @"Player or media not initialized", nil);
+                reject(@"E_CAPTURE_FAILED", @"Unknown capture error", nil);
             }
-        } @catch (NSException *exception) {
-            reject(@"error", [NSString stringWithFormat:@"Error getting duration: %@", exception.reason], nil);
-        }
+        }];
     }];
 }
 

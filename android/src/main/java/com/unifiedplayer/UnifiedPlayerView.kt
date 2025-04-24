@@ -4,9 +4,13 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
 import android.util.Log
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.TextureView
+import android.view.View
 import android.widget.FrameLayout
 import com.facebook.react.bridge.Arguments
 import com.google.android.exoplayer2.ExoPlayer
@@ -312,17 +316,41 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         }
     }
 
-    fun getDuration(): Float {
-        Log.d(TAG, "GetDuration method called")
-        return player?.let {
-            val duration = it.duration.toFloat() / 1000f
-            Log.d(TAG, "Duration: $duration seconds (raw: ${it.duration})")
-            if (it.duration > 0) duration else 0f
-        } ?: run {
-            Log.e(TAG, "Cannot get duration: player is null")
-            0f
-        }
+fun getDuration(): Float {
+    Log.d(TAG, "GetDuration method called")
+    return player?.let {
+        val duration = it.duration.toFloat() / 1000f
+        Log.d(TAG, "Duration: $duration seconds (raw: ${it.duration})")
+        if (it.duration > 0) duration else 0f
+    } ?: run {
+        Log.e(TAG, "Cannot get duration: player is null")
+        0f
     }
+}
+
+fun captureFrame(): Bitmap? {
+    Log.d(TAG, "CaptureFrame method called")
+    try {
+        // Create a bitmap with the same dimensions as the player view
+        val bitmap = Bitmap.createBitmap(
+            playerView.width, 
+            playerView.height,
+            Bitmap.Config.ARGB_8888
+        )
+        
+        // Create a canvas with the bitmap
+        val canvas = Canvas(bitmap)
+        
+        // Draw the player view onto the canvas
+        playerView.draw(canvas)
+        
+        Log.d(TAG, "Successfully captured frame from PlayerView")
+        return bitmap
+    } catch (e: Exception) {
+        Log.e(TAG, "Error capturing frame: ${e.message}", e)
+        return null
+    }
+}
 
     // Add a getter for the ExoPlayer instance
     val exoPlayer: ExoPlayer?
