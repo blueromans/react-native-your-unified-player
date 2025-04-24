@@ -3,6 +3,7 @@
 #import <React/RCTBridgeModule.h>
 #import <React/RCTEventEmitter.h>
 #import <React/RCTUIManager.h>
+#import <MobileVLCKit/MobileVLCKit.h>
 
 @implementation UnifiedPlayerModule
 
@@ -32,58 +33,106 @@ RCT_EXPORT_MODULE(UnifiedPlayer);
 }
 
 // Play video
-RCT_EXPORT_METHOD(play:(nonnull NSNumber *)reactTag) {
+RCT_EXPORT_METHOD(play:(nonnull NSNumber *)reactTag
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
     [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *,UIView *> *viewRegistry) {
         UIView *view = viewRegistry[reactTag];
         if (!view) {
-            RCTLogError(@"Invalid view for tag %@", reactTag);
+            reject(@"error", @"Invalid view for tag", nil);
             return;
         }
         
-        SEL playSelector = NSSelectorFromString(@"play");
-        if ([view respondsToSelector:playSelector]) {
-            [view performSelector:playSelector];
-        } else {
-            RCTLogError(@"View does not respond to play method");
+        // Cast to UnifiedPlayerUIView class
+        Class UnifiedPlayerUIViewClass = NSClassFromString(@"UnifiedPlayerUIView");
+        if (![view isKindOfClass:UnifiedPlayerUIViewClass]) {
+            reject(@"error", @"View is not a UnifiedPlayerUIView", nil);
+            return;
+        }
+        
+        @try {
+            // Use direct ivar access for safety
+            VLCMediaPlayer *player = [view valueForKey:@"player"];
+            if (player && player.media) {
+                [player play];
+                resolve(@(YES));
+            } else {
+                reject(@"error", @"Player or media not initialized", nil);
+            }
+        } @catch (NSException *exception) {
+            reject(@"error", [NSString stringWithFormat:@"Error playing: %@", exception.reason], nil);
         }
     }];
 }
 
 // Pause video
-RCT_EXPORT_METHOD(pause:(nonnull NSNumber *)reactTag) {
+RCT_EXPORT_METHOD(pause:(nonnull NSNumber *)reactTag
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
     [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *,UIView *> *viewRegistry) {
         UIView *view = viewRegistry[reactTag];
         if (!view) {
-            RCTLogError(@"Invalid view for tag %@", reactTag);
+            reject(@"error", @"Invalid view for tag", nil);
             return;
         }
         
-        SEL pauseSelector = NSSelectorFromString(@"pause");
-        if ([view respondsToSelector:pauseSelector]) {
-            [view performSelector:pauseSelector];
-        } else {
-            RCTLogError(@"View does not respond to pause method");
+        // Cast to UnifiedPlayerUIView class
+        Class UnifiedPlayerUIViewClass = NSClassFromString(@"UnifiedPlayerUIView");
+        if (![view isKindOfClass:UnifiedPlayerUIViewClass]) {
+            reject(@"error", @"View is not a UnifiedPlayerUIView", nil);
+            return;
+        }
+        
+        @try {
+            // Use direct ivar access for safety
+            VLCMediaPlayer *player = [view valueForKey:@"player"];
+            if (player) {
+                [player pause];
+                resolve(@(YES));
+            } else {
+                reject(@"error", @"Player not initialized", nil);
+            }
+        } @catch (NSException *exception) {
+            reject(@"error", [NSString stringWithFormat:@"Error pausing: %@", exception.reason], nil);
         }
     }];
 }
 
 // Seek to specific time
-RCT_EXPORT_METHOD(seekTo:(nonnull NSNumber *)reactTag time:(nonnull NSNumber *)time) {
+RCT_EXPORT_METHOD(seekTo:(nonnull NSNumber *)reactTag 
+                  time:(nonnull NSNumber *)time
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
     [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *,UIView *> *viewRegistry) {
         UIView *view = viewRegistry[reactTag];
         if (!view) {
-            RCTLogError(@"Invalid view for tag %@", reactTag);
+            reject(@"error", @"Invalid view for tag", nil);
             return;
         }
         
-        SEL seekToTimeSelector = NSSelectorFromString(@"seekToTime:");
-        if ([view respondsToSelector:seekToTimeSelector]) {
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            [view performSelector:seekToTimeSelector withObject:time];
-            #pragma clang diagnostic pop
-        } else {
-            RCTLogError(@"View does not respond to seekToTime: method");
+        // Cast to UnifiedPlayerUIView class
+        Class UnifiedPlayerUIViewClass = NSClassFromString(@"UnifiedPlayerUIView");
+        if (![view isKindOfClass:UnifiedPlayerUIViewClass]) {
+            reject(@"error", @"View is not a UnifiedPlayerUIView", nil);
+            return;
+        }
+        
+        @try {
+            // Use direct ivar access for safety
+            VLCMediaPlayer *player = [view valueForKey:@"player"];
+            if (player && player.media) {
+                float timeValue = [time floatValue];
+                float duration = player.media.length.intValue / 1000.0f;
+                float position = duration > 0 ? timeValue / duration : 0;
+                position = MAX(0, MIN(1, position)); // Ensure position is between 0 and 1
+                
+                [player setPosition:position];
+                resolve(@(YES));
+            } else {
+                reject(@"error", @"Player or media not initialized", nil);
+            }
+        } @catch (NSException *exception) {
+            reject(@"error", [NSString stringWithFormat:@"Error seeking: %@", exception.reason], nil);
         }
     }];
 }
@@ -99,15 +148,26 @@ RCT_EXPORT_METHOD(getCurrentTime:(nonnull NSNumber *)reactTag
             return;
         }
         
-        SEL getCurrentTimeSelector = NSSelectorFromString(@"getCurrentTime");
-        if ([view respondsToSelector:getCurrentTimeSelector]) {
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            NSNumber *currentTime = [NSNumber numberWithFloat:[[view performSelector:getCurrentTimeSelector] floatValue]];
-            #pragma clang diagnostic pop
-            resolve(currentTime);
-        } else {
-            reject(@"error", @"View does not respond to getCurrentTime method", nil);
+        // Cast to UnifiedPlayerUIView class
+        Class UnifiedPlayerUIViewClass = NSClassFromString(@"UnifiedPlayerUIView");
+        if (![view isKindOfClass:UnifiedPlayerUIViewClass]) {
+            reject(@"error", @"View is not a UnifiedPlayerUIView", nil);
+            return;
+        }
+        
+        // Use direct method call with proper type safety
+        float currentTime = 0;
+        @try {
+            // Use direct ivar access for safety
+            VLCMediaPlayer *player = [view valueForKey:@"player"];
+            if (player) {
+                currentTime = player.time.intValue / 1000.0f;
+                resolve(@(currentTime));
+            } else {
+                reject(@"error", @"Player not initialized", nil);
+            }
+        } @catch (NSException *exception) {
+            reject(@"error", [NSString stringWithFormat:@"Error getting current time: %@", exception.reason], nil);
         }
     }];
 }
@@ -123,15 +183,26 @@ RCT_EXPORT_METHOD(getDuration:(nonnull NSNumber *)reactTag
             return;
         }
         
-        SEL getDurationSelector = NSSelectorFromString(@"getDuration");
-        if ([view respondsToSelector:getDurationSelector]) {
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            NSNumber *duration = [NSNumber numberWithFloat:[[view performSelector:getDurationSelector] floatValue]];
-            #pragma clang diagnostic pop
-            resolve(duration);
-        } else {
-            reject(@"error", @"View does not respond to getDuration method", nil);
+        // Cast to UnifiedPlayerUIView class
+        Class UnifiedPlayerUIViewClass = NSClassFromString(@"UnifiedPlayerUIView");
+        if (![view isKindOfClass:UnifiedPlayerUIViewClass]) {
+            reject(@"error", @"View is not a UnifiedPlayerUIView", nil);
+            return;
+        }
+        
+        // Use direct method call with proper type safety
+        float duration = 0;
+        @try {
+            // Use direct ivar access for safety
+            VLCMediaPlayer *player = [view valueForKey:@"player"];
+            if (player && player.media) {
+                duration = player.media.length.intValue / 1000.0f;
+                resolve(@(duration));
+            } else {
+                reject(@"error", @"Player or media not initialized", nil);
+            }
+        } @catch (NSException *exception) {
+            reject(@"error", [NSString stringWithFormat:@"Error getting duration: %@", exception.reason], nil);
         }
     }];
 }

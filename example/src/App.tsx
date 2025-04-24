@@ -42,10 +42,24 @@ function App(): React.JSX.Element {
     const viewTag = getPlayerViewTag();
     if (viewTag !== null) {
       // Pause and play to try to kick-start the player
-      UnifiedPlayer.pause(viewTag);
-      setTimeout(() => {
-        UnifiedPlayer.play(viewTag);
-      }, 500);
+      UnifiedPlayer.pause(viewTag)
+        .then(() => {
+          // Wait a moment before playing
+          return new Promise<void>((resolve) => {
+            setTimeout(() => {
+              resolve();
+            }, 500);
+          });
+        })
+        .then(() => {
+          return UnifiedPlayer.play(viewTag);
+        })
+        .then(() => {
+          console.log('Player reinitialized successfully');
+        })
+        .catch((error) => {
+          console.warn('Error reinitializing player:', error);
+        });
     }
   }, []);
 
@@ -135,12 +149,15 @@ function App(): React.JSX.Element {
     );
 
     if (viewTag !== null) {
-      try {
-        UnifiedPlayer.play(viewTag);
-        setIsPaused(false);
-      } catch (error) {
-        console.log('Error calling play method:', error);
-      }
+      UnifiedPlayer.play(viewTag)
+        .then(() => {
+          console.log('Play successful');
+          setIsPaused(false);
+        })
+        .catch((error) => {
+          console.log('Error calling play method:', error);
+          Alert.alert('Play Error', String(error));
+        });
     } else {
       console.log('Could not get player view tag for play');
     }
@@ -157,18 +174,21 @@ function App(): React.JSX.Element {
     );
 
     if (viewTag !== null) {
-      try {
-        UnifiedPlayer.pause(viewTag);
-        setIsPaused(true);
-      } catch (error) {
-        console.log('Error calling pause method:', error);
-      }
+      UnifiedPlayer.pause(viewTag)
+        .then(() => {
+          console.log('Pause successful');
+          setIsPaused(true);
+        })
+        .catch((error) => {
+          console.log('Error calling pause method:', error);
+          Alert.alert('Pause Error', String(error));
+        });
     } else {
       console.log('Could not get player view tag for pause');
     }
   };
 
-  // JavaScript-based workaround for seek
+  // Improved seek method using promises
   const handleSeekTo = (time: number) => {
     console.log('Seek button pressed, attempting to seek to:', time);
 
@@ -182,35 +202,46 @@ function App(): React.JSX.Element {
       return;
     }
 
-    // Use the isPaused prop to control the player
-    // This is a workaround since the direct seekTo method isn't working
+    const viewTag = getPlayerViewTag();
+    if (viewTag !== null) {
+      // Store current state
+      const wasPlaying = !isPaused;
 
-    // Store current state
-    const wasPlaying = !isPaused;
-
-    // 1. Pause the player
-    setIsPaused(true);
-
-    // 2. Wait a moment for the pause to take effect
-    setTimeout(() => {
-      // 3. Try to use the native seekTo method first
-      const viewTag = getPlayerViewTag();
-      if (viewTag !== null) {
-        try {
-          console.log('Attempting native seekTo as a fallback');
-          UnifiedPlayer.seekTo(viewTag, time);
-        } catch (e) {
-          console.warn('Native seekTo failed:', e);
-        }
+      // 1. Pause the player if it's playing
+      if (wasPlaying) {
+        UnifiedPlayer.pause(viewTag)
+          .then(() => {
+            // 2. Perform the seek
+            return UnifiedPlayer.seekTo(viewTag, time);
+          })
+          .then(() => {
+            // 3. Resume playback if it was playing before
+            if (wasPlaying) {
+              return UnifiedPlayer.play(viewTag);
+            }
+            return Promise.resolve(true);
+          })
+          .then(() => {
+            console.log('Seek operation completed successfully');
+          })
+          .catch((error) => {
+            console.warn('Seek operation failed:', error);
+            Alert.alert('Seek Error', String(error));
+          });
+      } else {
+        // If already paused, just seek
+        UnifiedPlayer.seekTo(viewTag, time)
+          .then(() => {
+            console.log('Seek operation completed successfully');
+          })
+          .catch((error) => {
+            console.warn('Seek operation failed:', error);
+            Alert.alert('Seek Error', String(error));
+          });
       }
-
-      // 4. Resume playback if it was playing before
-      setTimeout(() => {
-        if (wasPlaying) {
-          setIsPaused(false);
-        }
-      }, 500);
-    }, 300);
+    } else {
+      console.log('Could not get player view tag for seek');
+    }
   };
 
   // JavaScript-based workaround for getCurrentTime
@@ -305,22 +336,32 @@ function App(): React.JSX.Element {
         const viewTag = getPlayerViewTag();
         if (viewTag !== null) {
           console.log('Auto-playing to initialize progress events');
-          UnifiedPlayer.play(viewTag);
 
-          // If we still don't get progress events after playing, try seeking to 0
-          // This can sometimes kick-start the progress events
-          setTimeout(() => {
-            if (!progressEventsReceived) {
-              console.log(
-                'Trying to kick-start progress events with a seek to 0'
-              );
-              try {
-                UnifiedPlayer.seekTo(viewTag, 0);
-              } catch (e) {
-                console.warn('Kick-start seek failed:', e);
-              }
-            }
-          }, 1000);
+          UnifiedPlayer.play(viewTag)
+            .then(() => {
+              // If we still don't get progress events after playing, try seeking to 0
+              // This can sometimes kick-start the progress events
+              return new Promise<void>((resolve) => {
+                setTimeout(() => {
+                  if (!progressEventsReceived) {
+                    console.log(
+                      'Trying to kick-start progress events with a seek to 0'
+                    );
+                    UnifiedPlayer.seekTo(viewTag, 0)
+                      .then(() => resolve())
+                      .catch((error) => {
+                        console.warn('Kick-start seek failed:', error);
+                        resolve();
+                      });
+                  } else {
+                    resolve();
+                  }
+                }, 1000);
+              });
+            })
+            .catch((error) => {
+              console.warn('Auto-play failed:', error);
+            });
         }
       }, 500);
     }

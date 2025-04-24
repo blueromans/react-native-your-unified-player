@@ -109,34 +109,58 @@ export const UnifiedPlayer = {
   /**
    * Start playback
    * @param viewTag - The tag of the player view
+   * @returns Promise resolving to true if successful
    */
-  play: (viewTag: number): void => {
+  play: (viewTag: number): Promise<boolean> => {
     try {
       console.log('UnifiedPlayer.play called with viewTag:', viewTag);
-      UnifiedPlayerModule.play(viewTag);
-      console.log('Native play method called successfully');
+      return UnifiedPlayerModule.play(viewTag)
+        .then((result: boolean) => {
+          console.log('Native play method called successfully');
+          return result;
+        })
+        .catch((error: any) => {
+          console.log(
+            'Error calling play:',
+            error instanceof Error ? error.message : String(error)
+          );
+          throw error;
+        });
     } catch (error) {
       console.log(
         'Error calling play:',
         error instanceof Error ? error.message : String(error)
       );
+      return Promise.reject(error);
     }
   },
 
   /**
    * Pause playback
    * @param viewTag - The tag of the player view
+   * @returns Promise resolving to true if successful
    */
-  pause: (viewTag: number): void => {
+  pause: (viewTag: number): Promise<boolean> => {
     try {
       console.log('UnifiedPlayer.pause called with viewTag:', viewTag);
-      UnifiedPlayerModule.pause(viewTag);
-      console.log('Native pause method called successfully');
+      return UnifiedPlayerModule.pause(viewTag)
+        .then((result: boolean) => {
+          console.log('Native pause method called successfully');
+          return result;
+        })
+        .catch((error: any) => {
+          console.log(
+            'Error calling pause:',
+            error instanceof Error ? error.message : String(error)
+          );
+          throw error;
+        });
     } catch (error) {
       console.log(
         'Error calling pause:',
         error instanceof Error ? error.message : String(error)
       );
+      return Promise.reject(error);
     }
   },
 
@@ -144,8 +168,9 @@ export const UnifiedPlayer = {
    * Seek to a specific time
    * @param viewTag - The tag of the player view
    * @param time - Time in seconds to seek to
+   * @returns Promise resolving to true if successful
    */
-  seekTo: (viewTag: number, time: number): void => {
+  seekTo: (viewTag: number, time: number): Promise<boolean> => {
     try {
       console.log(
         'UnifiedPlayer.seekTo called with viewTag:',
@@ -153,13 +178,24 @@ export const UnifiedPlayer = {
         'time:',
         time
       );
-      UnifiedPlayerModule.seekTo(viewTag, time);
-      console.log('Native seekTo method called successfully');
+      return UnifiedPlayerModule.seekTo(viewTag, time)
+        .then((result: boolean) => {
+          console.log('Native seekTo method called successfully');
+          return result;
+        })
+        .catch((error: any) => {
+          console.log(
+            'Error calling seekTo:',
+            error instanceof Error ? error.message : String(error)
+          );
+          throw error;
+        });
     } catch (error) {
       console.log(
         'Error calling seekTo:',
         error instanceof Error ? error.message : String(error)
       );
+      return Promise.reject(error);
     }
   },
 
