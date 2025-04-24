@@ -12,12 +12,7 @@ class UnifiedPlayerPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
     Log.d(TAG, "Creating native modules")
     return listOf(
-      UnifiedPlayerModule(reactContext).apply {
-        reactContext.runOnUiQueueThread {
-          // Initialize module on UI thread
-          Log.d(TAG, "Module initialized on UI thread")
-        }
-      }
+      UnifiedPlayerModule(reactContext)
     )
   }
 
