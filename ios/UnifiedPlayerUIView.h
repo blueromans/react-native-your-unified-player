@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak) RCTBridge *bridge;
 @property (nonatomic, assign) VLCMediaPlayerState previousState;
 @property (nonatomic, assign) BOOL hasRenderedVideo;
+@property (nonatomic, assign) BOOL readyEventSent;
 
 // Event callbacks
 @property (nonatomic, copy) RCTDirectEventBlock onLoadStart;

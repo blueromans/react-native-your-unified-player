@@ -19,6 +19,7 @@
         
         // Initialize properties
         _hasRenderedVideo = NO;
+        _readyEventSent = NO;
         
         // Create the player
         _player = [[VLCMediaPlayer alloc] init];
@@ -182,8 +183,9 @@
                self.window ? @"YES" : @"NO",
                self.superview ? @"YES" : @"NO");
     
-    // Reset the rendered flag
+    // Reset the flags
     _hasRenderedVideo = NO;
+    _readyEventSent = NO;
     
     // Make sure we're in the main thread
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -432,6 +434,19 @@
     VLCMediaPlayerState state = _player.state;
     RCTLogInfo(@"[UnifiedPlayerViewManager] mediaPlayerStateChanged - New State: %d", state); // Added Log
     
+    // Check if media is ready to play
+    if ((state == VLCMediaPlayerStateBuffering || state == VLCMediaPlayerStatePlaying || state == VLCMediaPlayerStatePaused) && !_readyEventSent) {
+        // Check if we have video tracks
+        NSArray *videoTracks = [_player.media tracksInformation];
+        if (videoTracks.count > 0 || _player.hasVideoOut) {
+            RCTLogInfo(@"[UnifiedPlayerViewManager] Media is ready to play - Video tracks found: %lu", (unsigned long)videoTracks.count);
+            
+            // Send ready event when media is ready, regardless of autoplay
+            [self sendEvent:@"onReadyToPlay" body:@{}];
+            _readyEventSent = YES;
+        }
+    }
+    
     // Debug information for video output
     if (state == VLCMediaPlayerStatePlaying) {
         RCTLogInfo(@"[UnifiedPlayerViewManager] Video size: %@", 
@@ -443,11 +458,6 @@
         NSArray *videoTracks = [_player.media tracksInformation];
         if (videoTracks.count > 0) {
             RCTLogInfo(@"[UnifiedPlayerViewManager] Video tracks found: %lu", (unsigned long)videoTracks.count);
-            
-            // Send ready event the first time we start playing
-            if (!_hasRenderedVideo) {
-                [self sendEvent:@"onReadyToPlay" body:@{}];
-            }
             
             // Send playing event when we actually start playing
             [self sendEvent:@"onPlaying" body:@{}];
