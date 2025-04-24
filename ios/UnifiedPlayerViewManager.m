@@ -5,7 +5,9 @@
 #import <React/RCTUIManager.h>
 #import <React/RCTBridge.h>
 #import <React/RCTUIManagerUtils.h>
+#import <React/RCTComponent.h>
 #import <MobileVLCKit/MobileVLCKit.h>
+#import "UnifiedPlayerModule.h"
 
 // Forward declarations
 @interface UnifiedPlayerUIView : UIView <VLCMediaPlayerDelegate>
@@ -13,114 +15,30 @@
 @property (nonatomic, copy) NSString *videoUrlString;
 @property (nonatomic, assign) BOOL autoplay;
 @property (nonatomic, assign) BOOL loop;
-@property (nonatomic, assign) BOOL isPaused; // Add isPaused property
+@property (nonatomic, assign) BOOL isPaused;
 @property (nonatomic, strong) NSArray *mediaOptions;
 @property (nonatomic, weak) RCTBridge *bridge;
 @property (nonatomic, assign) VLCMediaPlayerState previousState;
 @property (nonatomic, assign) BOOL hasRenderedVideo;
 
+// Event callbacks
+@property (nonatomic, copy) RCTDirectEventBlock onLoadStart;
+@property (nonatomic, copy) RCTDirectEventBlock onReadyToPlay;
+@property (nonatomic, copy) RCTDirectEventBlock onError;
+@property (nonatomic, copy) RCTDirectEventBlock onProgress;
+@property (nonatomic, copy) RCTDirectEventBlock onPlaybackComplete;
+@property (nonatomic, copy) RCTDirectEventBlock onPlaybackStalled;
+@property (nonatomic, copy) RCTDirectEventBlock onPlaybackResumed;
+@property (nonatomic, copy) RCTDirectEventBlock onPlaying;
+@property (nonatomic, copy) RCTDirectEventBlock onPaused;
+
 - (void)setupWithVideoUrlString:(NSString *)videoUrlString;
 - (void)play;
 - (void)pause;
-- (void)seekToTime:(float)time;
+- (void)seekToTime:(NSNumber *)timeNumber;
 - (float)getCurrentTime;
 - (float)getDuration;
 @end
-
-// UnifiedPlayerModule - Module for handling control methods
-@interface UnifiedPlayerModule : RCTEventEmitter <RCTBridgeModule>
-@end
-
-@implementation UnifiedPlayerModule
-
-RCT_EXPORT_MODULE();
-
-- (NSArray<NSString *> *)supportedEvents {
-    return @[
-        @"onLoadStart",
-        @"onReadyToPlay",
-        @"onError",
-        @"onProgress",
-        @"onPlaybackComplete",
-        @"onPlaybackStalled",
-        @"onPlaybackResumed",
-        @"onPlaying",
-        @"onPaused"
-    ];
-}
-
-- (dispatch_queue_t)methodQueue {
-    return dispatch_get_main_queue();
-}
-
-// Play video
-RCT_EXPORT_METHOD(play:(nonnull NSNumber *)reactTag) {
-    [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *,UIView *> *viewRegistry) {
-        UnifiedPlayerUIView *view = (UnifiedPlayerUIView *)viewRegistry[reactTag];
-        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
-            RCTLogError(@"Invalid view for tag %@", reactTag);
-            return;
-        }
-        [view play];
-    }];
-}
-
-// Pause video
-RCT_EXPORT_METHOD(pause:(nonnull NSNumber *)reactTag) {
-    [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *,UIView *> *viewRegistry) {
-        UnifiedPlayerUIView *view = (UnifiedPlayerUIView *)viewRegistry[reactTag];
-        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
-            RCTLogError(@"Invalid view for tag %@", reactTag);
-            return;
-        }
-        [view pause];
-    }];
-}
-
-// Seek to specific time
-RCT_EXPORT_METHOD(seekTo:(nonnull NSNumber *)reactTag time:(nonnull NSNumber *)time) {
-    [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *,UIView *> *viewRegistry) {
-        UnifiedPlayerUIView *view = (UnifiedPlayerUIView *)viewRegistry[reactTag];
-        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
-            RCTLogError(@"Invalid view for tag %@", reactTag);
-            return;
-        }
-        [view seekToTime:[time floatValue]];
-    }];
-}
-
-// Get current playback time
-RCT_EXPORT_METHOD(getCurrentTime:(nonnull NSNumber *)reactTag
-                  resolver:(RCTPromiseResolveBlock)resolve
-                  rejecter:(RCTPromiseRejectBlock)reject) {
-    [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *,UIView *> *viewRegistry) {
-        UnifiedPlayerUIView *view = (UnifiedPlayerUIView *)viewRegistry[reactTag];
-        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
-            reject(@"error", @"Invalid view for tag", nil);
-            return;
-        }
-        resolve(@([view getCurrentTime]));
-    }];
-}
-
-// Get video duration
-RCT_EXPORT_METHOD(getDuration:(nonnull NSNumber *)reactTag
-                  resolver:(RCTPromiseResolveBlock)resolve
-                  rejecter:(RCTPromiseRejectBlock)reject) {
-    [self.bridge.uiManager addUIBlock:^(RCTUIManager *uiManager, NSDictionary<NSNumber *,UIView *> *viewRegistry) {
-        UnifiedPlayerUIView *view = (UnifiedPlayerUIView *)viewRegistry[reactTag];
-        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
-            reject(@"error", @"Invalid view for tag", nil);
-            return;
-        }
-        resolve(@([view getDuration]));
-    }];
-}
-
-@end
-
-// Global event emitter instance
-static UnifiedPlayerModule *eventEmitter = nil;
 
 // Main player view implementation
 @implementation UnifiedPlayerUIView
@@ -233,15 +151,38 @@ static UnifiedPlayerModule *eventEmitter = nil;
 }
 
 - (void)sendProgressEvent:(float)currentTime duration:(float)duration {
-    NSDictionary *event = @{
-        @"currentTime": @(currentTime),
-        @"duration": @(duration)
-    };
-    
-    [self sendEvent:@"onProgress" body:event];
+    if (self.onProgress) {
+        self.onProgress(@{
+            @"currentTime": @(currentTime),
+            @"duration": @(duration)
+        });
+    }
 }
 
 - (void)sendEvent:(NSString *)eventName body:(NSDictionary *)body {
+    // Map event names to their corresponding callback properties
+    if ([eventName isEqualToString:@"onLoadStart"] && self.onLoadStart) {
+        self.onLoadStart(body);
+    } else if ([eventName isEqualToString:@"onReadyToPlay"] && self.onReadyToPlay) {
+        self.onReadyToPlay(body);
+    } else if ([eventName isEqualToString:@"onError"] && self.onError) {
+        self.onError(body);
+    } else if ([eventName isEqualToString:@"onProgress"] && self.onProgress) {
+        self.onProgress(body);
+    } else if ([eventName isEqualToString:@"onPlaybackComplete"] && self.onPlaybackComplete) {
+        self.onPlaybackComplete(body);
+    } else if ([eventName isEqualToString:@"onPlaybackStalled"] && self.onPlaybackStalled) {
+        self.onPlaybackStalled(body);
+    } else if ([eventName isEqualToString:@"onPlaybackResumed"] && self.onPlaybackResumed) {
+        self.onPlaybackResumed(body);
+    } else if ([eventName isEqualToString:@"onPlaying"] && self.onPlaying) {
+        self.onPlaying(body);
+    } else if ([eventName isEqualToString:@"onPaused"] && self.onPaused) {
+        self.onPaused(body);
+    }
+    
+    // Also send events through the module for backward compatibility
+    UnifiedPlayerModule *eventEmitter = [self.bridge moduleForClass:[UnifiedPlayerModule class]];
     if (eventEmitter != nil) {
         [eventEmitter sendEventWithName:eventName body:body];
     }
@@ -416,9 +357,11 @@ static UnifiedPlayerModule *eventEmitter = nil;
     RCTLogInfo(@"[UnifiedPlayerViewManager] pause called");
 }
 
-- (void)seekToTime:(float)time {
+- (void)seekToTime:(NSNumber *)timeNumber {
+    float time = [timeNumber floatValue];
     // VLC uses a 0-1 position value for seeking
-    float position = time / [self getDuration];
+    float duration = [self getDuration];
+    float position = duration > 0 ? time / duration : 0;
     position = MAX(0, MIN(1, position)); // Ensure position is between 0 and 1
     
     [_player setPosition:position];
@@ -626,12 +569,6 @@ RCT_EXPORT_MODULE(UnifiedPlayerView)
 {
     UnifiedPlayerUIView *playerView = [[UnifiedPlayerUIView alloc] init];
     playerView.bridge = self.bridge;
-    
-    // Store the event emitter for sending events
-    if (eventEmitter == nil) {
-        eventEmitter = [self.bridge moduleForClass:[UnifiedPlayerModule class]];
-    }
-    
     return playerView;
 }
 
@@ -664,5 +601,16 @@ RCT_CUSTOM_VIEW_PROPERTY(isPaused, BOOL, UnifiedPlayerUIView)
 {
     view.isPaused = [RCTConvert BOOL:json];
 }
+
+// Event handlers
+RCT_EXPORT_VIEW_PROPERTY(onLoadStart, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onReadyToPlay, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onError, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onProgress, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onPlaybackComplete, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onPlaybackStalled, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onPlaybackResumed, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onPlaying, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onPaused, RCTDirectEventBlock);
 
 @end
