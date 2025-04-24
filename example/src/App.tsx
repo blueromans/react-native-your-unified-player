@@ -139,10 +139,10 @@ function App(): React.JSX.Element {
         UnifiedPlayer.play(viewTag);
         setIsPaused(false);
       } catch (error) {
-        console.error('Error calling play method:', error);
+        console.log('Error calling play method:', error);
       }
     } else {
-      console.error('Could not get player view tag for play');
+      console.log('Could not get player view tag for play');
     }
   };
 
@@ -161,10 +161,10 @@ function App(): React.JSX.Element {
         UnifiedPlayer.pause(viewTag);
         setIsPaused(true);
       } catch (error) {
-        console.error('Error calling pause method:', error);
+        console.log('Error calling pause method:', error);
       }
     } else {
-      console.error('Could not get player view tag for pause');
+      console.log('Could not get player view tag for pause');
     }
   };
 
@@ -248,7 +248,7 @@ function App(): React.JSX.Element {
       console.log('JS-based getCurrentTime result:', jsTime);
       Alert.alert('Current Time', `JS Fallback: ${jsTime.toFixed(2)} seconds`);
     } catch (error) {
-      console.error('Error in getCurrentTime:', error);
+      console.log('Error in getCurrentTime:', error);
       Alert.alert('Error', `Failed to get current time: ${error}`);
     }
   };

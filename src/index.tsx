@@ -95,7 +95,10 @@ export const UnifiedPlayer = {
       UnifiedPlayerModule.play(viewTag);
       console.log('Native play method called successfully');
     } catch (error) {
-      console.error('Error calling play:', error);
+      console.log(
+        'Error calling play:',
+        error instanceof Error ? error.message : String(error)
+      );
     }
   },
 
@@ -109,7 +112,10 @@ export const UnifiedPlayer = {
       UnifiedPlayerModule.pause(viewTag);
       console.log('Native pause method called successfully');
     } catch (error) {
-      console.error('Error calling pause:', error);
+      console.log(
+        'Error calling pause:',
+        error instanceof Error ? error.message : String(error)
+      );
     }
   },
 
@@ -129,7 +135,10 @@ export const UnifiedPlayer = {
       UnifiedPlayerModule.seekTo(viewTag, time);
       console.log('Native seekTo method called successfully');
     } catch (error) {
-      console.error('Error calling seekTo:', error);
+      console.log(
+        'Error calling seekTo:',
+        error instanceof Error ? error.message : String(error)
+      );
     }
   },
 
@@ -143,7 +152,10 @@ export const UnifiedPlayer = {
       console.log('UnifiedPlayer.getCurrentTime called with viewTag:', viewTag);
       return UnifiedPlayerModule.getCurrentTime(viewTag);
     } catch (error) {
-      console.error('Error calling getCurrentTime:', error);
+      console.log(
+        'Error calling getCurrentTime:',
+        error instanceof Error ? error.message : String(error)
+      );
       return Promise.reject(error);
     }
   },
@@ -158,7 +170,10 @@ export const UnifiedPlayer = {
       console.log('UnifiedPlayer.getDuration called with viewTag:', viewTag);
       return UnifiedPlayerModule.getDuration(viewTag);
     } catch (error) {
-      console.error('Error calling getDuration:', error);
+      console.log(
+        'Error calling getDuration:',
+        error instanceof Error ? error.message : String(error)
+      );
       return Promise.reject(error);
     }
   },
