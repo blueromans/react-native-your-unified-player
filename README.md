@@ -65,7 +65,6 @@ const MyPlayerComponent = () => {
         videoUrl="YOUR_VIDEO_URL_HERE" // Replace with your video URL
         autoplay={false} // Optional: set to true to autoplay
         loop={false} // Optional: set to true to loop
-        // authToken="YOUR_AUTH_TOKEN" // Optional: for protected streams
         // You can also use direct view props instead of or in addition to event listeners:
         // onReadyToPlay={() => console.log('View prop: Ready to play')}
         // onError={(e) => console.log('View prop: Error', e)}
@@ -87,7 +86,6 @@ export default MyPlayerComponent;
 | `style` | `ViewStyle` | Yes | Apply custom styling |
 | `autoplay` | `boolean` | No | Autoplay video when loaded |
 | `loop` | `boolean` | No | Should video loop when finished |
-| `authToken` | `string` | No | Optional auth token for protected streams |
 | `onReadyToPlay` | `() => void` | No | Callback when video is ready to play |
 | `onError` | `(error: any) => void` | No | Callback when an error occurs |
 | `onPlaybackComplete` | `() => void` | No | Callback when video playback finishes |

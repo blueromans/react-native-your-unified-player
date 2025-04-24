@@ -169,8 +169,4 @@ class UnifiedPlayerModule(private val reactContext: ReactApplicationContext) : R
         }
     }
 
-    @ReactMethod
-    fun testMethod(message: String) {
-        Log.d(TAG, "Test method called with message: $message")
-    }
 }

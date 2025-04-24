@@ -11,7 +11,6 @@
 @interface UnifiedPlayerUIView : UIView <VLCMediaPlayerDelegate>
 @property (nonatomic, strong) VLCMediaPlayer *player;
 @property (nonatomic, copy) NSString *videoUrlString;
-@property (nonatomic, copy) NSString *authToken;
 @property (nonatomic, assign) BOOL autoplay;
 @property (nonatomic, assign) BOOL loop;
 @property (nonatomic, assign) BOOL isPaused; // Add isPaused property
@@ -38,16 +37,15 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents {
     return @[
+        @"onLoadStart",
         @"onReadyToPlay",
         @"onError",
         @"onProgress",
         @"onPlaybackComplete",
         @"onPlaybackStalled",
         @"onPlaybackResumed",
-        @"onBuffering",
         @"onPlaying",
-        @"onPaused",
-        @"onStopped"
+        @"onPaused"
     ];
 }
 
@@ -240,9 +238,7 @@ static UnifiedPlayerModule *eventEmitter = nil;
         @"duration": @(duration)
     };
     
-    if (eventEmitter != nil) {
-        [eventEmitter sendEventWithName:@"onProgress" body:event];
-    }
+    [self sendEvent:@"onProgress" body:event];
 }
 
 - (void)sendEvent:(NSString *)eventName body:(NSDictionary *)body {
@@ -256,6 +252,8 @@ static UnifiedPlayerModule *eventEmitter = nil;
     _videoUrlString = [videoUrlString copy];
     
     if (videoUrlString) {
+        // Send onLoadStart event when we set a video URL, before loading starts
+        [self sendEvent:@"onLoadStart" body:@{}];
         [self loadVideo];
     } else {
         [_player stop];
@@ -301,10 +299,6 @@ static UnifiedPlayerModule *eventEmitter = nil;
         // Create VLC media options array
         NSMutableArray *mediaOptions = [NSMutableArray array];
         
-        // Add auth token if available
-        if (self->_authToken.length > 0) {
-            [mediaOptions addObject:[NSString stringWithFormat:@"http-header-fields=Authorization: Bearer %@", self->_authToken]];
-        }
         
         // Add default network caching options for streaming
         BOOL isStreaming = [videoURL.scheme hasPrefix:@"http"] || 
@@ -462,15 +456,6 @@ static UnifiedPlayerModule *eventEmitter = nil;
     }
 }
 
-- (void)setAuthToken:(NSString *)authToken {
-    if (_authToken != authToken) {
-        _authToken = [authToken copy];
-        // If we already have a URL, reload with the new auth token
-        if (_videoUrlString) {
-            [self loadVideo];
-        }
-    }
-}
 
 #pragma mark - VLCMediaPlayerDelegate
 
@@ -495,12 +480,17 @@ static UnifiedPlayerModule *eventEmitter = nil;
                    _player.hasVideoOut ? @"YES" : @"NO");
         
         // Check video tracks
-        NSInteger videoTrackCount = _player.numberOfVideoTracks;
-        RCTLogInfo(@"[UnifiedPlayerViewManager] Video track count: %ld", (long)videoTrackCount);
-        
-        if (videoTrackCount > 0) {
-            RCTLogInfo(@"[UnifiedPlayerViewManager] Current video track index: %d", _player.currentVideoTrackIndex);
-            RCTLogInfo(@"[UnifiedPlayerViewManager] Video track names: %@", _player.videoTrackNames);
+        NSArray *videoTracks = [_player.media tracksInformation];
+        if (videoTracks.count > 0) {
+            RCTLogInfo(@"[UnifiedPlayerViewManager] Video tracks found: %lu", (unsigned long)videoTracks.count);
+            
+            // Send ready event the first time we start playing
+            if (!_hasRenderedVideo) {
+                [self sendEvent:@"onReadyToPlay" body:@{}];
+            }
+            
+            // Send playing event when we actually start playing
+            [self sendEvent:@"onPlaying" body:@{}];
             
             // Trigger a delayed drawable update to help with rendering
             if (!_hasRenderedVideo && _player.videoSize.width > 0) {
@@ -513,14 +503,15 @@ static UnifiedPlayerModule *eventEmitter = nil;
     }
     
     // Check for buffer state transitions
-    if ((state == VLCMediaPlayerStateBuffering && _previousState != VLCMediaPlayerStateBuffering) ||
-        (state == VLCMediaPlayerStatePlaying && _previousState == VLCMediaPlayerStateBuffering)) {
-        [self handleBufferingStatusChange];
+    if (_previousState == VLCMediaPlayerStateBuffering && state == VLCMediaPlayerStatePlaying) {
+        // We've recovered from buffering
+        [self sendEvent:@"onPlaybackResumed" body:@{}];
     }
     
-    // Save the current state for next time
+    // Store the current state for future comparisons
     _previousState = state;
     
+    // React to state changes
     switch (state) {
         case VLCMediaPlayerStateOpening:
             RCTLogInfo(@"[UnifiedPlayerViewManager] VLCMediaPlayerStateOpening");
@@ -528,20 +519,11 @@ static UnifiedPlayerModule *eventEmitter = nil;
             
         case VLCMediaPlayerStateBuffering:
             RCTLogInfo(@"[UnifiedPlayerViewManager] VLCMediaPlayerStateBuffering");
-            [self sendEvent:@"onBuffering" body:@{
-                @"isPlaying": @(_player.isPlaying),
-                @"duration": @([self getDuration])
-            }];
-                break;
-                
+            [self sendEvent:@"onPlaybackStalled" body:@{}];
+            break;
+            
         case VLCMediaPlayerStatePlaying:
             RCTLogInfo(@"[UnifiedPlayerViewManager] VLCMediaPlayerStatePlaying");
-            [self sendEvent:@"onPlaying" body:@{
-                @"target": @(1),
-                @"duration": @([self getDuration] * 1000), // Convert to ms for consistency
-                @"seekable": @(YES)
-            }];
-            [self sendEvent:@"onReadyToPlay" body:@{}];
             break;
             
         case VLCMediaPlayerStatePaused:
@@ -551,7 +533,7 @@ static UnifiedPlayerModule *eventEmitter = nil;
             
         case VLCMediaPlayerStateStopped:
             RCTLogInfo(@"[UnifiedPlayerViewManager] VLCMediaPlayerStateStopped");
-            [self sendEvent:@"onStopped" body:@{}];
+            // We don't emit onStopped event as it's not in our unified event list
             break;
             
         case VLCMediaPlayerStateEnded:
@@ -561,9 +543,9 @@ static UnifiedPlayerModule *eventEmitter = nil;
             // Handle looping
             if (_loop) {
                 [_player stop];
-                    [_player play];
-                }
-                break;
+                [_player play];
+            }
+            break;
             
         case VLCMediaPlayerStateError:
             RCTLogInfo(@"[UnifiedPlayerViewManager] VLCMediaPlayerStateError");
@@ -575,7 +557,7 @@ static UnifiedPlayerModule *eventEmitter = nil;
             break;
             
         default:
-                            break;
+            break;
     }
 }
 
@@ -669,12 +651,6 @@ RCT_CUSTOM_VIEW_PROPERTY(autoplay, BOOL, UnifiedPlayerUIView)
 RCT_CUSTOM_VIEW_PROPERTY(loop, BOOL, UnifiedPlayerUIView)
 {
     view.loop = [RCTConvert BOOL:json];
-}
-
-// Auth token property
-RCT_CUSTOM_VIEW_PROPERTY(authToken, NSString, UnifiedPlayerUIView)
-{
-    view.authToken = [RCTConvert NSString:json];
 }
 
 // Media options property

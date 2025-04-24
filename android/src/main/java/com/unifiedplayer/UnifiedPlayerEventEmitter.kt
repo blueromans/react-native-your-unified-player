@@ -12,12 +12,15 @@ class UnifiedPlayerEventEmitter(private val reactContext: ReactApplicationContex
         private const val TAG = "UnifiedPlayerEventEmitter"
         
         // Define all possible event types
+        const val EVENT_LOAD_START = "onLoadStart"
         const val EVENT_READY = "onReadyToPlay"
         const val EVENT_ERROR = "onError"
         const val EVENT_PROGRESS = "onProgress"
         const val EVENT_COMPLETE = "onPlaybackComplete"
         const val EVENT_STALLED = "onPlaybackStalled"
         const val EVENT_RESUMED = "onPlaybackResumed"
+        const val EVENT_PLAYING = "onPlaying"
+        const val EVENT_PAUSED = "onPaused"
         
         // Singleton instance for access from other classes
         private var instance: UnifiedPlayerEventEmitter? = null
@@ -59,4 +62,4 @@ class UnifiedPlayerEventEmitter(private val reactContext: ReactApplicationContex
         super.onCatalystInstanceDestroy()
         instance = null
     }
-} 
+}

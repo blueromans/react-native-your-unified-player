@@ -39,6 +39,9 @@ export type UnifiedPlayerProps = {
   // Is the player currently paused
   isPaused?: boolean;
 
+  // Callback when video begins loading
+  onLoadStart?: () => void;
+
   // Callback when video is ready to play
   onReadyToPlay?: () => void;
 
@@ -50,6 +53,18 @@ export type UnifiedPlayerProps = {
 
   // Callback for playback progress
   onProgress?: (data: { currentTime: number; duration: number }) => void;
+
+  // Callback when playback is stalled (buffering)
+  onPlaybackStalled?: () => void;
+
+  // Callback when playback resumes after stalling
+  onPlaybackResumed?: () => void;
+
+  // Callback when playback is paused
+  onPaused?: () => void;
+
+  // Callback when playback is playing
+  onPlaying?: () => void;
 };
 
 // Native component registration
@@ -63,13 +78,19 @@ const UnifiedPlayerModule = NativeModules.UnifiedPlayer;
 
 // Export event types for reference
 export const UnifiedPlayerEventTypes = {
+  LOAD_START: 'onLoadStart',
   READY: 'onReadyToPlay',
   ERROR: 'onError',
   PROGRESS: 'onProgress',
   COMPLETE: 'onPlaybackComplete',
   STALLED: 'onPlaybackStalled',
   RESUMED: 'onPlaybackResumed',
+  PLAYING: 'onPlaying',
+  PAUSED: 'onPaused',
 };
+
+// Export events emitter for event listeners
+export const UnifiedPlayerEvents = NativeModules.UnifiedPlayer;
 
 /**
  * UnifiedPlayerView component for video playback

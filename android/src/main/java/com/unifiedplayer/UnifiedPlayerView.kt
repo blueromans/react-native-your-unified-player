@@ -19,6 +19,15 @@ import com.google.android.exoplayer2.video.VideoSize
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_COMPLETE
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_ERROR
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_LOAD_START
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_PAUSED
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_PLAYING
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_PROGRESS
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_READY
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_RESUMED
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_STALLED
 
 class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     companion object {
@@ -50,7 +59,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                     event.putDouble("duration", duration.toDouble())
                     
                     Log.d(TAG, "Sending progress event: currentTime=$currentTime, duration=$duration")
-                    sendEvent("topProgress", event)
+                    sendEvent(EVENT_PROGRESS, event)
                 } else {
                     Log.d(TAG, "Not sending progress event because duration is $duration (raw: ${it.duration})")
                 }
@@ -89,14 +98,15 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                 when (playbackState) {
                     Player.STATE_READY -> {
                         Log.d(TAG, "ExoPlayer STATE_READY")
-                        sendEvent("topReadyToPlay", Arguments.createMap())
+                        sendEvent(EVENT_READY, Arguments.createMap())
                     }
                     Player.STATE_ENDED -> {
                         Log.d(TAG, "ExoPlayer STATE_ENDED")
-                        sendEvent("topPlaybackComplete", Arguments.createMap())
+                        sendEvent(EVENT_COMPLETE, Arguments.createMap())
                     }
                     Player.STATE_BUFFERING -> {
                         Log.d(TAG, "ExoPlayer STATE_BUFFERING")
+                        sendEvent(EVENT_STALLED, Arguments.createMap())
                     }
                     Player.STATE_IDLE -> {
                         Log.d(TAG, "ExoPlayer STATE_IDLE")
@@ -105,29 +115,28 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                Log.d(TAG, "onIsPlayingChanged: $isPlaying")
+                Log.d(TAG, "onIsPlayingChanged: $isPlaying") // Added log
                 if (isPlaying) {
-                    Log.d(TAG, "ExoPlayer isPlaying")
-                    // Use the defined event constant for playback resumed
-                    sendEvent("topPlaybackResumed", Arguments.createMap())
+                    Log.d(TAG, "ExoPlayer is now playing")
+                    sendEvent(EVENT_RESUMED, Arguments.createMap())
+                    sendEvent(EVENT_PLAYING, Arguments.createMap())
                 } else {
-                    Log.d(TAG, "ExoPlayer isPaused")
-                    // Add event emission for pause state
-                    sendEvent("topPlaybackPaused", Arguments.createMap())
+                    Log.d(TAG, "ExoPlayer is now paused")
+                    sendEvent(EVENT_PAUSED, Arguments.createMap())
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                Log.d(TAG, "ExoPlayer onPlayerError: ${error.message}")
-                val event = Arguments.createMap().apply {
-                    putString("error", error.message)
-                }
-                sendEvent("topError", event)
+                Log.e(TAG, "ExoPlayer error: $error")
+                val event = Arguments.createMap()
+                event.putString("code", "PLAYBACK_ERROR")
+                event.putString("message", error.message ?: "Unknown playback error")
+                sendEvent(EVENT_ERROR, event)
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                Log.d(TAG, "ExoPlayer onMediaItemTransition")
-                sendEvent("topLoadStart", Arguments.createMap())
+                Log.d(TAG, "onMediaItemTransition with reason: $reason")
+                sendEvent(EVENT_LOAD_START, Arguments.createMap())
             }
 
             override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
@@ -238,8 +247,9 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
             
             // Send error event
             val event = Arguments.createMap()
-            event.putString("error", "Failed to load video: ${e.message}")
-            sendEvent("topError", event)
+            event.putString("code", "SOURCE_ERROR")
+            event.putString("message", "Failed to load video source: $url")
+            sendEvent(EVENT_ERROR, event)
         }
     }
 
@@ -323,10 +333,24 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
             // Log the event for debugging
             Log.d(TAG, "Sending direct event: $eventName with params: $params")
             
+            // Map event names to their corresponding top event names
+            val topEventName = when (eventName) {
+                EVENT_READY -> "topReadyToPlay"
+                EVENT_ERROR -> "topError"
+                EVENT_PROGRESS -> "topProgress"
+                EVENT_COMPLETE -> "topPlaybackComplete"
+                EVENT_STALLED -> "topPlaybackStalled"
+                EVENT_RESUMED -> "topPlaybackResumed"
+                EVENT_PLAYING -> "topPlaying"
+                EVENT_PAUSED -> "topPlaybackPaused"
+                EVENT_LOAD_START -> "topLoadStart"
+                else -> "top${eventName.substring(2)}" // Fallback for any other events
+            }
+            
             // Use the ReactContext to dispatch the event directly to the view
             val reactContext = context as ReactContext
             reactContext.getJSModule(RCTEventEmitter::class.java)
-                .receiveEvent(id, eventName, params)
+                .receiveEvent(id, topEventName, params)
         } catch (e: Exception) {
             Log.e(TAG, "Error sending event $eventName: ${e.message}", e)
         }

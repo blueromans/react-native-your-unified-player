@@ -37,6 +37,8 @@ class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
   fun setIsPaused(view: UnifiedPlayerView, isPaused: Boolean) {
     view.setIsPaused(isPaused)
   }
+
+
   
   // Register direct events
   override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any> {
@@ -49,7 +51,9 @@ class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
       .put("topProgress", MapBuilder.of("registrationName", "onProgress"))
       .put("topPlaybackComplete", MapBuilder.of("registrationName", "onPlaybackComplete"))
       .put("topPlaybackResumed", MapBuilder.of("registrationName", "onPlaybackResumed"))
-      .put("topPlaybackPaused", MapBuilder.of("registrationName", "onPlaybackPaused"))
+      .put("topPlaybackStalled", MapBuilder.of("registrationName", "onPlaybackStalled"))
+      .put("topPlaybackPaused", MapBuilder.of("registrationName", "onPaused"))
+      .put("topPlaying", MapBuilder.of("registrationName", "onPlaying"))
       .put("topLoadStart", MapBuilder.of("registrationName", "onLoadStart"))
       .build()
   }
