@@ -43,9 +43,8 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     private var videoUrl: String? = null
     private var autoplay: Boolean = true
     private var loop: Boolean = false
-    private var playerView: PlayerView
-    private var textureView: android.view.TextureView? = null
-    private var player: ExoPlayer? = null
+    private var textureView: android.view.TextureView
+    internal var player: ExoPlayer? = null
     private var currentProgress = 0
     private var isPaused = false
 
@@ -83,33 +82,23 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         // Create ExoPlayer
         player = ExoPlayer.Builder(context).build()
 
-        // Create TextureView for video rendering
-        textureView = android.view.TextureView(context).apply {
-            layoutParams = LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.MATCH_PARENT
-            )
-        }
+    // Create TextureView for video rendering
+    textureView = android.view.TextureView(context).apply {
+        layoutParams = LayoutParams(
+            LayoutParams.MATCH_PARENT,
+            LayoutParams.MATCH_PARENT
+        )
+    }
 
-        // Create PlayerView without SurfaceView
-        playerView = PlayerView(context).apply {
-            layoutParams = LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.MATCH_PARENT
-            )
-            setPlayer(player)
-            useController = false // Disable default controls
-        }
+    // Add TextureView to the view hierarchy
+    addView(textureView)
 
-        // Add views to hierarchy
-        addView(textureView)
-        addView(playerView)
-
-        // Set TextureView as video surface
-        player?.setVideoTextureView(textureView)
-        // Add logging for playerView dimensions and post play call
-        playerView.post {
-            Log.d(TAG, "PlayerView dimensions after addView: width=${playerView.width}, height=${playerView.height}")
+    // We'll set the video surface when the TextureView's surface is available
+    // in the onSurfaceTextureAvailable callback
+    Log.d(TAG, "TextureView added to view hierarchy")
+        // Log dimensions of the view
+        post {
+            Log.d(TAG, "UnifiedPlayerView dimensions after init: width=${width}, height=${height}")
         }
 
         player?.addListener(object : Player.Listener {
@@ -195,24 +184,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
-                // Called when video size changes.
-                Log.d(TAG, "ExoPlayer onVideoSizeChanged: videoSize=$videoSize")
-                Log.d(TAG, "Video size changed: width=${videoSize.width}, height=${videoSize.height}")
-            }
-
-            override fun onSurfaceSizeChanged(width: Int, height: Int) {
-                // Called when the size of the surface changes.
-                Log.d(TAG, "ExoPlayer onSurfaceSizeChanged: width=$width, height=$height")
-            }
-
-            override fun onRenderedFirstFrame() {
-                // Called when the first frame is rendered.
-                Log.d(TAG, "ExoPlayer onRenderedFirstFrame")
-            }
-
-            override fun onSkipSilenceEnabledChanged(skipSilenceEnabled: Boolean) {
-                // Called when skip silence is enabled or disabled.
-                Log.d(TAG, "ExoPlayer onSkipSilenceEnabledChanged: skipSilenceEnabled=$skipSilenceEnabled")
+                // Handle video size changes if needed
             }
         })
     }
@@ -273,14 +245,9 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         }
     }
 
-    fun setAuthToken(token: String?) {
-        // Removed as per request
-        Log.d(TAG, "Auth token handling removed")
-    }
-
     fun setAutoplay(value: Boolean) {
         autoplay = value
-        player?.playWhenReady = value // Set ExoPlayer's playWhenReady property
+        player?.playWhenReady = value
     }
 
     fun setLoop(value: Boolean) {
@@ -316,7 +283,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
             it.seekTo(milliseconds)
             
             // Force a progress update after seeking
-            progressRunnable.run()
+        progressRunnable.run()
         } ?: Log.e(TAG, "Cannot seek: player is null")
     }
 
@@ -390,14 +357,39 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         val width = right - left
         val height = bottom - top
         Log.d(TAG, "UnifiedPlayerView onLayout: width=$width, height=$height")
-        // Ensure playerView also gets laid out
-        playerView.layout(0, 0, width, height)
+        // Ensure textureView gets laid out properly
+        textureView.layout(0, 0, width, height)
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         Log.d(TAG, "UnifiedPlayerView onAttachedToWindow")
-        playerView.setPlayer(player)
+        textureView.surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+    override fun onSurfaceTextureAvailable(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
+        Log.d(TAG, "TextureView onSurfaceTextureAvailable: width=$width, height=$height")
+        // Create a Surface from the SurfaceTexture and set it on the player
+        val videoSurface = android.view.Surface(surface)
+        player?.setVideoSurface(videoSurface)
+        Log.d(TAG, "Set video surface from TextureView's SurfaceTexture")
+    }
+
+    override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
+        Log.d(TAG, "TextureView onSurfaceTextureSizeChanged: width=$width, height=$height")
+    }
+
+    override fun onSurfaceTextureDestroyed(surface: android.graphics.SurfaceTexture): Boolean {
+        Log.d(TAG, "TextureView onSurfaceTextureDestroyed")
+        // Set the player's surface to null to release it
+        player?.setVideoSurface(null)
+        Log.d(TAG, "Cleared video surface from player")
+        return true
+    }
+
+    override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {
+        // This is called very frequently, so we'll comment out this log
+        // Log.d(TAG, "TextureView onSurfaceTextureUpdated")
+    }
+}
         startProgressUpdates() // Use the new method to start progress updates
     }
 
@@ -420,11 +412,31 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                 }
 
                 // Get bitmap directly from TextureView
-                val bitmap = textureView?.bitmap ?: run {
-                    Log.e(TAG, "Failed to get bitmap from TextureView")
-                    return ""
-                }
+val bitmap = textureView.bitmap ?: run {
+    Log.e(TAG, "Failed to get bitmap from TextureView")
+    return ""
+}
 
+// Debugging: Log the dimensions of the bitmap
+bitmap.let {
+    Log.d(TAG, "Bitmap dimensions: width=${it.width}, height=${it.height}")
+    
+    // Check if bitmap is empty (all black)
+    var hasNonBlackPixel = false
+    for (x in 0 until it.width) {
+        for (y in 0 until it.height) {
+            if (it.getPixel(x, y) != Color.BLACK) {
+                hasNonBlackPixel = true
+                break
+            }
+        }
+        if (hasNonBlackPixel) break
+    }
+    
+    if (!hasNonBlackPixel) {
+        Log.w(TAG, "Bitmap appears to be all black")
+    }
+}
                 // Compress and encode the bitmap
                 val byteArrayOutputStream = ByteArrayOutputStream()
                 if (bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream)) {
@@ -439,8 +451,8 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
             } ?: run {
                 Log.e(TAG, "Cannot capture: player is null")
                 ""
-            }
-        } catch (e: Exception) {
+                }
+            } catch (e: Exception) {
             Log.e(TAG, "Error during capture: ${e.message}", e)
             ""
         }
