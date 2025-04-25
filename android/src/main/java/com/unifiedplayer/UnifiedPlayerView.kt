@@ -2,11 +2,17 @@ package com.unifiedplayer
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.view.PixelCopy
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import android.util.Log
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.View
 import android.widget.FrameLayout
 import com.facebook.react.bridge.Arguments
 import com.google.android.exoplayer2.ExoPlayer
@@ -38,6 +44,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     private var autoplay: Boolean = true
     private var loop: Boolean = false
     private var playerView: PlayerView
+    private var textureView: android.view.TextureView? = null
     private var player: ExoPlayer? = null
     private var currentProgress = 0
     private var isPaused = false
@@ -76,17 +83,30 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         // Create ExoPlayer
         player = ExoPlayer.Builder(context).build()
 
-        // Create PlayerView
+        // Create TextureView for video rendering
+        textureView = android.view.TextureView(context).apply {
+            layoutParams = LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.MATCH_PARENT
+            )
+        }
+
+        // Create PlayerView without SurfaceView
         playerView = PlayerView(context).apply {
             layoutParams = LayoutParams(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.MATCH_PARENT
             )
             setPlayer(player)
-            // playerView.surfaceView?.surfaceType = android.view.SurfaceView.SURFACE_TYPE_SOFTWARE // Reverted: Let's remove surfaceType setting
+            useController = false // Disable default controls
         }
 
+        // Add views to hierarchy
+        addView(textureView)
         addView(playerView)
+
+        // Set TextureView as video surface
+        player?.setVideoTextureView(textureView)
         // Add logging for playerView dimensions and post play call
         playerView.post {
             Log.d(TAG, "PlayerView dimensions after addView: width=${playerView.width}, height=${playerView.height}")
@@ -386,5 +406,43 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         Log.d(TAG, "UnifiedPlayerView onDetachedFromWindow")
         progressHandler.removeCallbacks(progressRunnable) // Stop progress updates
         player?.release()
+    }
+
+    fun capture(): String {
+        Log.d(TAG, "Capture method called")
+        return try {
+            player?.let { exoPlayer ->
+                // Get the video size from the player
+                val videoSize = exoPlayer.videoSize
+                if (videoSize.width <= 0 || videoSize.height <= 0) {
+                    Log.e(TAG, "Invalid video dimensions: ${videoSize.width}x${videoSize.height}")
+                    return ""
+                }
+
+                // Get bitmap directly from TextureView
+                val bitmap = textureView?.bitmap ?: run {
+                    Log.e(TAG, "Failed to get bitmap from TextureView")
+                    return ""
+                }
+
+                // Compress and encode the bitmap
+                val byteArrayOutputStream = ByteArrayOutputStream()
+                if (bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream)) {
+                    val byteArray = byteArrayOutputStream.toByteArray()
+                    val base64EncodedString = Base64.encodeToString(byteArray, Base64.DEFAULT)
+                    Log.d(TAG, "Capture successful, base64 length: ${base64EncodedString.length}")
+                    base64EncodedString
+                } else {
+                    Log.e(TAG, "Failed to compress bitmap")
+                    ""
+                }
+            } ?: run {
+                Log.e(TAG, "Cannot capture: player is null")
+                ""
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during capture: ${e.message}", e)
+            ""
+        }
     }
 }

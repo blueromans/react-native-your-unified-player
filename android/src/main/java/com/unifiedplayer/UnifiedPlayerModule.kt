@@ -169,4 +169,30 @@ class UnifiedPlayerModule(private val reactContext: ReactApplicationContext) : R
         }
     }
 
+    @ReactMethod
+    fun capture(viewTag: Int, promise: Promise) {
+        Log.d(TAG, "Native capture method called with viewTag: $viewTag")
+        try {
+            val playerView = getPlayerViewByTag(viewTag)
+            if (playerView != null) {
+                UiThreadUtil.runOnUiThread {
+                    try {
+                        // Assuming playerView has a method called capture() that returns a String
+                        val captureResult = playerView.capture()
+                        Log.d(TAG, "Capture command executed successfully, result: $captureResult")
+                        promise.resolve(captureResult)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during capture: ${e.message}", e)
+                        promise.reject("CAPTURE_ERROR", "Error during capture: ${e.message}", e)
+                    }
+                }
+            } else {
+                Log.e(TAG, "Player view not found for tag: $viewTag")
+                promise.reject("VIEW_NOT_FOUND", "Player view not found for tag: $viewTag")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in capture method: ${e.message}", e)
+            promise.reject("CAPTURE_ERROR", "Error in capture method: ${e.message}", e)
+        }
+    }
 }
