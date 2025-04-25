@@ -2,6 +2,8 @@
 #import <React/RCTView.h>
 #import <React/RCTComponent.h>
 #import <MobileVLCKit/MobileVLCKit.h>
+#import <AVFoundation/AVFoundation.h>
+#import <CoreVideo/CoreVideo.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -17,6 +19,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) VLCMediaPlayerState previousState;
 @property (nonatomic, assign) BOOL hasRenderedVideo;
 @property (nonatomic, assign) BOOL readyEventSent;
+@property (nonatomic, assign) BOOL isRecording;
+@property (nonatomic, strong) AVAssetWriter *assetWriter;
+@property (nonatomic, strong) AVAssetWriterInput *assetWriterVideoInput;
+@property (nonatomic, strong) AVAssetWriterInputPixelBufferAdaptor *assetWriterPixelBufferAdaptor;
+@property (nonatomic, strong) NSString *recordingPath;
+// We'll use associated objects instead of a property for CADisplayLink
+@property (nonatomic, assign) NSInteger frameCount;
 
 // Event callbacks
 @property (nonatomic, copy) RCTDirectEventBlock onLoadStart;
@@ -37,6 +46,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (float)getCurrentTime;
 - (float)getDuration;
 - (void)captureFrameWithCompletion:(void (^)(NSString * _Nullable base64String, NSError * _Nullable error))completion;
+- (void)captureFrameForRecording;
+- (BOOL)startRecordingToPath:(NSString *)outputPath;
+- (void)startFrameCapture;
+- (NSString *)stopRecording;
 
 @end
 

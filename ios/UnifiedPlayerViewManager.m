@@ -7,6 +7,7 @@
 #import <React/RCTUIManagerUtils.h>
 #import <React/RCTComponent.h>
 #import <MobileVLCKit/MobileVLCKit.h>
+#import <objc/runtime.h>
 #import "UnifiedPlayerModule.h"
 #import "UnifiedPlayerUIView.h"
 
@@ -388,6 +389,227 @@
     }
 }
 
+- (BOOL)startRecordingToPath:(NSString *)outputPath {
+    RCTLogInfo(@"[UnifiedPlayerViewManager] startRecordingToPath: %@", outputPath);
+    
+    if (_isRecording) {
+        RCTLogError(@"[UnifiedPlayerViewManager] Recording is already in progress");
+        return NO;
+    }
+    
+    if (!_player || !_player.isPlaying) {
+        RCTLogError(@"[UnifiedPlayerViewManager] Cannot start recording: Player is not playing");
+        return NO;
+    }
+    
+    // Store the recording path
+    _recordingPath = [outputPath copy];
+    
+    // Create directory if it doesn't exist
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSString *directory = [outputPath stringByDeletingLastPathComponent];
+    if (![fileManager fileExistsAtPath:directory]) {
+        NSError *error = nil;
+        [fileManager createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:&error];
+        if (error) {
+            RCTLogError(@"[UnifiedPlayerViewManager] Failed to create directory: %@", error);
+            return NO;
+        }
+    }
+    
+    // Set up AVAssetWriter
+    NSURL *outputURL = [NSURL fileURLWithPath:outputPath];
+    
+    // Remove existing file if it exists
+    if ([fileManager fileExistsAtPath:outputPath]) {
+        NSError *error = nil;
+        [fileManager removeItemAtPath:outputPath error:&error];
+        if (error) {
+            RCTLogError(@"[UnifiedPlayerViewManager] Failed to remove existing file: %@", error);
+            return NO;
+        }
+    }
+    
+    NSError *error = nil;
+    _assetWriter = [[AVAssetWriter alloc] initWithURL:outputURL fileType:AVFileTypeMPEG4 error:&error];
+    if (error) {
+        RCTLogError(@"[UnifiedPlayerViewManager] Failed to create asset writer: %@", error);
+        return NO;
+    }
+    
+    // Get video dimensions
+    CGSize videoSize = _player.videoSize;
+    if (videoSize.width <= 0 || videoSize.height <= 0) {
+        // Use view size as fallback
+        videoSize = self.bounds.size;
+    }
+    
+    // Configure video settings
+    NSDictionary *videoSettings = @{
+        AVVideoCodecKey: AVVideoCodecTypeH264,
+        AVVideoWidthKey: @((int)videoSize.width),
+        AVVideoHeightKey: @((int)videoSize.height),
+        AVVideoCompressionPropertiesKey: @{
+            AVVideoAverageBitRateKey: @(2000000), // 2 Mbps
+            AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+        }
+    };
+    
+    // Create video input
+    _assetWriterVideoInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeVideo outputSettings:videoSettings];
+    _assetWriterVideoInput.expectsMediaDataInRealTime = YES;
+    
+    if ([_assetWriter canAddInput:_assetWriterVideoInput]) {
+        [_assetWriter addInput:_assetWriterVideoInput];
+    } else {
+        RCTLogError(@"[UnifiedPlayerViewManager] Cannot add video input to asset writer");
+        return NO;
+    }
+    
+    // Create a pixel buffer adaptor for writing pixel buffers
+    NSDictionary *pixelBufferAttributes = @{
+        (NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
+        (NSString *)kCVPixelBufferWidthKey: @((int)videoSize.width),
+        (NSString *)kCVPixelBufferHeightKey: @((int)videoSize.height),
+        (NSString *)kCVPixelBufferCGImageCompatibilityKey: @YES,
+        (NSString *)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES
+    };
+    
+    _assetWriterPixelBufferAdaptor = [AVAssetWriterInputPixelBufferAdaptor
+                                     assetWriterInputPixelBufferAdaptorWithAssetWriterInput:_assetWriterVideoInput
+                                     sourcePixelBufferAttributes:pixelBufferAttributes];
+    
+    // Start recording session
+    if ([_assetWriter startWriting]) {
+        [_assetWriter startSessionAtSourceTime:kCMTimeZero];
+        _isRecording = YES;
+        
+        // Start a timer to capture frames
+        [self startFrameCapture];
+        
+        RCTLogInfo(@"[UnifiedPlayerViewManager] Recording started successfully");
+        return YES;
+    } else {
+        RCTLogError(@"[UnifiedPlayerViewManager] Failed to start writing: %@", _assetWriter.error);
+        return NO;
+    }
+}
+
+- (void)startFrameCapture {
+    RCTLogInfo(@"[UnifiedPlayerViewManager] Frame capture started");
+    
+    // Create a CADisplayLink to capture frames at the screen refresh rate
+    CADisplayLink *displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(captureFrameForRecording)];
+    [displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    
+    // Store the display link as an associated object
+    objc_setAssociatedObject(self, "displayLinkKey", displayLink, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    
+    // Initialize frame count
+    _frameCount = 0;
+}
+
+- (void)captureFrameForRecording {
+    if (!_isRecording || !_assetWriterVideoInput.isReadyForMoreMediaData) {
+        return;
+    }
+    
+    // Create a bitmap context to draw the current view
+    CGSize size = _player.videoSize;
+    if (size.width <= 0 || size.height <= 0) {
+        size = self.bounds.size;
+    }
+    
+    // Create a pixel buffer
+    CVPixelBufferRef pixelBuffer = NULL;
+    CVReturn status = CVPixelBufferPoolCreatePixelBuffer(NULL, _assetWriterPixelBufferAdaptor.pixelBufferPool, &pixelBuffer);
+    
+    if (status != kCVReturnSuccess || pixelBuffer == NULL) {
+        RCTLogError(@"[UnifiedPlayerViewManager] Failed to create pixel buffer");
+        return;
+    }
+    
+    // Lock the pixel buffer
+    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+    
+    // Get the pixel buffer address
+    void *pixelData = CVPixelBufferGetBaseAddress(pixelBuffer);
+    
+    // Create a bitmap context
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(pixelData,
+                                                size.width,
+                                                size.height,
+                                                8,
+                                                CVPixelBufferGetBytesPerRow(pixelBuffer),
+                                                colorSpace,
+                                                kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+    
+    // Draw the current view into the context
+    UIGraphicsPushContext(context);
+    [self.layer renderInContext:context];
+    UIGraphicsPopContext();
+    
+    // Clean up
+    CGContextRelease(context);
+    CGColorSpaceRelease(colorSpace);
+    
+    // Unlock the pixel buffer
+    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+    
+    // Calculate the presentation time
+    CMTime presentationTime = CMTimeMake(_frameCount, 30); // 30 fps
+    
+    // Append the pixel buffer to the asset writer
+    if (![_assetWriterPixelBufferAdaptor appendPixelBuffer:pixelBuffer withPresentationTime:presentationTime]) {
+        RCTLogError(@"[UnifiedPlayerViewManager] Failed to append pixel buffer: %@", _assetWriter.error);
+    }
+    
+    // Release the pixel buffer
+    CVPixelBufferRelease(pixelBuffer);
+    
+    // Increment the frame count
+    _frameCount++;
+}
+
+- (NSString *)stopRecording {
+    RCTLogInfo(@"[UnifiedPlayerViewManager] stopRecording called");
+    
+    if (!_isRecording) {
+        RCTLogError(@"[UnifiedPlayerViewManager] No recording in progress");
+        return @"";
+    }
+    
+    // Stop frame capture by stopping the display link
+    CADisplayLink *displayLink = objc_getAssociatedObject(self, "displayLinkKey");
+    if (displayLink) {
+        [displayLink invalidate];
+        objc_setAssociatedObject(self, "displayLinkKey", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    
+    // Finish writing
+    [_assetWriterVideoInput markAsFinished];
+    [_assetWriter finishWritingWithCompletionHandler:^{
+        if (self->_assetWriter.status == AVAssetWriterStatusCompleted) {
+            RCTLogInfo(@"[UnifiedPlayerViewManager] Recording completed successfully");
+        } else {
+            RCTLogError(@"[UnifiedPlayerViewManager] Recording failed: %@", self->_assetWriter.error);
+        }
+        
+        // Clean up
+        self->_assetWriter = nil;
+        self->_assetWriterVideoInput = nil;
+        self->_assetWriterPixelBufferAdaptor = nil;
+        self->_isRecording = NO;
+        self->_frameCount = 0;
+    }];
+    
+    NSString *path = _recordingPath;
+    _recordingPath = nil;
+    
+    return path;
+}
+
 - (void)setAutoplay:(BOOL)autoplay {
     _autoplay = autoplay;
 }
@@ -555,6 +777,18 @@
     
     // Remove all observers
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    
+    // Stop recording if in progress
+    if (_isRecording) {
+        [self stopRecording];
+    }
+    
+    // Clean up display link if it exists
+    CADisplayLink *displayLink = objc_getAssociatedObject(self, "displayLinkKey");
+    if (displayLink) {
+        [displayLink invalidate];
+        objc_setAssociatedObject(self, "displayLinkKey", nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
     
     // Stop playback and release player
     [_player stop];

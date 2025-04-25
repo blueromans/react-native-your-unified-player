@@ -216,4 +216,98 @@ RCT_EXPORT_METHOD(capture:(nonnull NSNumber *)reactTag
     }];
 }
 
+RCT_EXPORT_METHOD(startRecording:(nonnull NSNumber *)reactTag
+                  outputPath:(NSString *)outputPath
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {
+        UIView *view = viewRegistry[reactTag];
+        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
+            RCTLogError(@"Invalid view returned from registry, expecting UnifiedPlayerUIView, got: %@", view);
+            reject(@"E_INVALID_VIEW", @"Expected UnifiedPlayerUIView", nil);
+            return;
+        }
+        
+        UnifiedPlayerUIView *playerView = (UnifiedPlayerUIView *)view;
+        
+        // If no output path is provided, create a default one in the Documents directory
+        NSString *finalOutputPath = outputPath;
+        if (!finalOutputPath || [finalOutputPath isEqualToString:@""]) {
+            NSString *documentsDirectory = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+            NSString *timestamp = [NSString stringWithFormat:@"%f", [[NSDate date] timeIntervalSince1970]];
+            finalOutputPath = [documentsDirectory stringByAppendingPathComponent:[NSString stringWithFormat:@"recording_%@.mp4", timestamp]];
+        }
+        
+        BOOL success = [playerView startRecordingToPath:finalOutputPath];
+        if (success) {
+            resolve(@YES);
+        } else {
+            reject(@"E_RECORDING_FAILED", @"Failed to start recording", nil);
+        }
+    }];
+}
+
+RCT_EXPORT_METHOD(stopRecording:(nonnull NSNumber *)reactTag
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {
+        UIView *view = viewRegistry[reactTag];
+        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
+            RCTLogError(@"Invalid view returned from registry, expecting UnifiedPlayerUIView, got: %@", view);
+            reject(@"E_INVALID_VIEW", @"Expected UnifiedPlayerUIView", nil);
+            return;
+        }
+        
+        UnifiedPlayerUIView *playerView = (UnifiedPlayerUIView *)view;
+        NSString *filePath = [playerView stopRecording];
+        
+        if (filePath && ![filePath isEqualToString:@""]) {
+            resolve(filePath);
+        } else {
+            reject(@"E_RECORDING_FAILED", @"Failed to stop recording or no recording in progress", nil);
+        }
+    }];
+}
+
+RCT_EXPORT_METHOD(saveVideo:(nonnull NSNumber *)reactTag
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {
+        UIView *view = viewRegistry[reactTag];
+        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
+            RCTLogError(@"Invalid view returned from registry, expecting UnifiedPlayerUIView, got: %@", view);
+            reject(@"E_INVALID_VIEW", @"Expected UnifiedPlayerUIView", nil);
+            return;
+        }
+        
+        UnifiedPlayerUIView *playerView = (UnifiedPlayerUIView *)view;
+        
+        // Create a file path in the Documents directory
+        NSString *documentsDirectory = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+        NSString *timestamp = [NSString stringWithFormat:@"%f", [[NSDate date] timeIntervalSince1970]];
+        NSString *filePath = [documentsDirectory stringByAppendingPathComponent:[NSString stringWithFormat:@"saved_video_%@.mp4", timestamp]];
+        
+        // Start recording
+        BOOL success = [playerView startRecordingToPath:filePath];
+        if (!success) {
+            reject(@"E_RECORDING_FAILED", @"Failed to start recording", nil);
+            return;
+        }
+        
+        // Record for 5 seconds (or adjust as needed)
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            NSString *savedFilePath = [playerView stopRecording];
+            
+            if (savedFilePath && ![savedFilePath isEqualToString:@""]) {
+                resolve(savedFilePath);
+            } else {
+                reject(@"E_RECORDING_FAILED", @"Failed to stop recording or no recording in progress", nil);
+            }
+        });
+    }];
+}
+
 @end

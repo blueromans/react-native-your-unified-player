@@ -8,6 +8,8 @@ import com.facebook.react.uimanager.UIManagerModule
 import android.util.Log
 import com.facebook.react.bridge.UiThreadUtil
 import android.view.View
+import android.os.Environment
+import java.io.File
 
 class UnifiedPlayerModule(private val reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
     companion object {
@@ -193,6 +195,73 @@ class UnifiedPlayerModule(private val reactContext: ReactApplicationContext) : R
         } catch (e: Exception) {
             Log.e(TAG, "Error in capture method: ${e.message}", e)
             promise.reject("CAPTURE_ERROR", "Error in capture method: ${e.message}", e)
+        }
+    }
+    
+    @ReactMethod
+    fun startRecording(viewTag: Int, outputPath: String?, promise: Promise) {
+        Log.d(TAG, "Native startRecording method called with viewTag: $viewTag, outputPath: $outputPath")
+        try {
+            val playerView = getPlayerViewByTag(viewTag)
+            if (playerView != null) {
+                UiThreadUtil.runOnUiThread {
+                    try {
+                        // Determine the output path
+                        val finalOutputPath = if (outputPath.isNullOrEmpty()) {
+                            // Use app-specific storage for Android 10+ (API level 29+)
+                            val moviesDir = File(reactApplicationContext.getExternalFilesDir(Environment.DIRECTORY_MOVIES), "recordings")
+                            if (!moviesDir.exists()) {
+                                moviesDir.mkdirs()
+                            }
+                            val timestamp = System.currentTimeMillis()
+                            File(moviesDir, "recording_$timestamp.mp4").absolutePath
+                        } else {
+                            outputPath
+                        }
+                        
+                        // Start recording
+                        val result = playerView.startRecording(finalOutputPath)
+                        Log.d(TAG, "Start recording command executed successfully, result: $result")
+                        promise.resolve(result)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during startRecording: ${e.message}", e)
+                        promise.reject("RECORDING_ERROR", "Error during startRecording: ${e.message}", e)
+                    }
+                }
+            } else {
+                Log.e(TAG, "Player view not found for tag: $viewTag")
+                promise.reject("VIEW_NOT_FOUND", "Player view not found for tag: $viewTag")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in startRecording method: ${e.message}", e)
+            promise.reject("RECORDING_ERROR", "Error in startRecording method: ${e.message}", e)
+        }
+    }
+    
+    @ReactMethod
+    fun stopRecording(viewTag: Int, promise: Promise) {
+        Log.d(TAG, "Native stopRecording method called with viewTag: $viewTag")
+        try {
+            val playerView = getPlayerViewByTag(viewTag)
+            if (playerView != null) {
+                UiThreadUtil.runOnUiThread {
+                    try {
+                        // Stop recording
+                        val filePath = playerView.stopRecording()
+                        Log.d(TAG, "Stop recording command executed successfully, filePath: $filePath")
+                        promise.resolve(filePath)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during stopRecording: ${e.message}", e)
+                        promise.reject("RECORDING_ERROR", "Error during stopRecording: ${e.message}", e)
+                    }
+                }
+            } else {
+                Log.e(TAG, "Player view not found for tag: $viewTag")
+                promise.reject("VIEW_NOT_FOUND", "Player view not found for tag: $viewTag")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in stopRecording method: ${e.message}", e)
+            promise.reject("RECORDING_ERROR", "Error in stopRecording method: ${e.message}", e)
         }
     }
 }

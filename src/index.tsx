@@ -263,4 +263,63 @@ export const UnifiedPlayer = {
       return Promise.reject(error);
     }
   },
+
+  /**
+   * Start recording the video
+   * @param viewTag - The tag of the player view
+   * @param outputPath - Optional path where to save the recording (platform-specific)
+   * @returns Promise resolving to true if recording started successfully
+   */
+  startRecording: (viewTag: number, outputPath?: string): Promise<boolean> => {
+    try {
+      console.log('UnifiedPlayer.startRecording called with viewTag:', viewTag);
+      return UnifiedPlayerModule.startRecording(viewTag, outputPath)
+        .then((result: boolean) => {
+          console.log('Native startRecording method called successfully');
+          return result;
+        })
+        .catch((error: any) => {
+          console.log(
+            'Error calling startRecording:',
+            error instanceof Error ? error.message : String(error)
+          );
+          throw error;
+        });
+    } catch (error) {
+      console.log(
+        'Error calling startRecording:',
+        error instanceof Error ? error.message : String(error)
+      );
+      return Promise.reject(error);
+    }
+  },
+
+  /**
+   * Stop recording the video
+   * @param viewTag - The tag of the player view
+   * @returns Promise resolving to the path of the saved recording
+   */
+  stopRecording: (viewTag: number): Promise<string> => {
+    try {
+      console.log('UnifiedPlayer.stopRecording called with viewTag:', viewTag);
+      return UnifiedPlayerModule.stopRecording(viewTag)
+        .then((filePath: string) => {
+          console.log('Native stopRecording method called successfully');
+          return filePath;
+        })
+        .catch((error: any) => {
+          console.log(
+            'Error calling stopRecording:',
+            error instanceof Error ? error.message : String(error)
+          );
+          throw error;
+        });
+    } catch (error) {
+      console.log(
+        'Error calling stopRecording:',
+        error instanceof Error ? error.message : String(error)
+      );
+      return Promise.reject(error);
+    }
+  },
 };

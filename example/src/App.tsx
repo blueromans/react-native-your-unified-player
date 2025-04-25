@@ -9,6 +9,8 @@ import {
   Alert,
   NativeModules,
   Image, // Import Image component
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import {
   UnifiedPlayerView,
@@ -18,7 +20,7 @@ import {
 
 function App(): React.JSX.Element {
   const playerRef = useRef(null);
-  const [videoUrl] = useState<string>(
+  const [videoUrl, setVideoUrl] = useState<string>(
     'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
   );
   const [autoplay, setAutoplay] = useState(true);
@@ -38,6 +40,12 @@ function App(): React.JSX.Element {
   const [progressEventsReceived, setProgressEventsReceived] = useState(false);
   // State to store the captured image base64 string
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  // State to track recording status
+  const [isRecording, setIsRecording] = useState(false);
+  // State to store the recorded video path
+  const [recordedVideoPath, setRecordedVideoPath] = useState<string | null>(
+    null
+  );
 
   const getPlayerViewTag = () => {
     return findNodeHandle(playerRef.current);
@@ -222,6 +230,123 @@ function App(): React.JSX.Element {
     } else {
       console.log('Could not get player view tag for capture');
       Alert.alert('Capture Error', 'Could not find player view.');
+    }
+  };
+
+  // Request storage permissions for Android
+  const requestStoragePermissions = async () => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    try {
+      // For Android 13+ (API 33+), we need to request specific permissions
+      if (Platform.Version >= 33) {
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO
+        );
+        return result === PermissionsAndroid.RESULTS.GRANTED;
+      }
+      // For Android 10+ (API 29+), we need to use scoped storage
+      else if (Platform.Version >= 29) {
+        // For API 29+, we don't need WRITE_EXTERNAL_STORAGE for app-specific files
+        return true;
+      }
+      // For older Android versions, request traditional storage permissions
+      else {
+        const permissions = [
+          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+        ];
+
+        const granted = await PermissionsAndroid.requestMultiple(permissions);
+
+        return (
+          granted[PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE] ===
+            PermissionsAndroid.RESULTS.GRANTED &&
+          granted[PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE] ===
+            PermissionsAndroid.RESULTS.GRANTED
+        );
+      }
+    } catch (err) {
+      console.error('Error requesting storage permissions:', err);
+      return false;
+    }
+  };
+
+  // --- Recording Logic ---
+  const handleStartRecording = async () => {
+    const viewTag = getPlayerViewTag();
+    if (viewTag !== null) {
+      if (isRecording) {
+        Alert.alert('Recording', 'Recording is already in progress');
+        return;
+      }
+
+      if (!isPlayerReady || !progressEventsReceived) {
+        Alert.alert(
+          'Cannot Record',
+          'The player is not ready yet. Please wait a moment and try again.'
+        );
+        return;
+      }
+
+      // Request permissions first
+      const hasPermissions = await requestStoragePermissions();
+      if (!hasPermissions) {
+        Alert.alert(
+          'Permission Denied',
+          'Storage permissions are required to record videos'
+        );
+        return;
+      }
+
+      try {
+        console.log('Starting recording...');
+        const result = await UnifiedPlayer.startRecording(viewTag);
+        if (result) {
+          setIsRecording(true);
+          Alert.alert('Recording', 'Recording started successfully');
+        } else {
+          Alert.alert('Recording Error', 'Failed to start recording');
+        }
+      } catch (error) {
+        console.error('Error starting recording:', error);
+        Alert.alert('Recording Error', String(error));
+      }
+    } else {
+      console.log('Could not get player view tag for recording');
+      Alert.alert('Recording Error', 'Could not find player view.');
+    }
+  };
+
+  const handleStopRecording = async () => {
+    const viewTag = getPlayerViewTag();
+    if (viewTag !== null) {
+      if (!isRecording) {
+        Alert.alert('Recording', 'No recording in progress');
+        return;
+      }
+
+      try {
+        console.log('Stopping recording...');
+        const filePath = await UnifiedPlayer.stopRecording(viewTag);
+        setIsRecording(false);
+
+        if (filePath && filePath.length > 0) {
+          setRecordedVideoPath(filePath);
+          Alert.alert('Recording Completed', `Video saved to: ${filePath}`);
+        } else {
+          Alert.alert('Recording Error', 'Failed to save recording');
+        }
+      } catch (error) {
+        console.error('Error stopping recording:', error);
+        Alert.alert('Recording Error', String(error));
+        setIsRecording(false);
+      }
+    } else {
+      console.log('Could not get player view tag for stopping recording');
+      Alert.alert('Recording Error', 'Could not find player view.');
     }
   };
 
@@ -475,6 +600,108 @@ function App(): React.JSX.Element {
           </TouchableOpacity>
         </View>
 
+        {/* Add Recording Buttons */}
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[styles.button, isRecording ? styles.recordingButton : null]}
+            onPress={handleStartRecording}
+            disabled={isRecording}
+          >
+            <Text style={styles.buttonText}>Start Recording</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleStopRecording}
+            disabled={!isRecording}
+          >
+            <Text style={styles.buttonText}>Stop Recording</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Display Recording Status */}
+        {isRecording && (
+          <View style={styles.recordingStatus}>
+            <Text style={styles.recordingText}>Recording in progress...</Text>
+          </View>
+        )}
+
+        {/* Display Recorded Video Path and Play Button */}
+        {recordedVideoPath && !isRecording && (
+          <View style={styles.captureContainer}>
+            <Text style={styles.captureTitle}>Recording Saved:</Text>
+            <Text style={styles.recordingPath}>{recordedVideoPath}</Text>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => {
+                  try {
+                    // Log the file path for debugging
+                    console.log(
+                      'Attempting to play recorded video from path:',
+                      recordedVideoPath
+                    );
+
+                    // Check if the file exists (for debugging purposes)
+                    if (Platform.OS === 'android') {
+                      // Format the file path correctly for Android
+                      // If the path doesn't start with file://, add it
+                      let formattedPath = recordedVideoPath;
+                      if (!formattedPath.startsWith('file://')) {
+                        formattedPath = `file://${formattedPath}`;
+                      }
+
+                      console.log('Formatted path:', formattedPath);
+
+                      // Reset player state before loading new URL
+                      setIsPlayerReady(false);
+                      setProgressEventsReceived(false);
+
+                      // Reset the player to the original video first
+                      setVideoUrl(
+                        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+                      );
+
+                      // Wait a moment before trying to play the recorded video
+                      setTimeout(() => {
+                        console.log('Now trying to play recorded video...');
+                        // Update the video URL to the recorded video path
+                        setVideoUrl(formattedPath);
+
+                        // Alert the user that we're trying to play the video
+                        Alert.alert(
+                          'Loading Video',
+                          'Attempting to play the recorded video...'
+                        );
+                      }, 1000);
+                    }
+                  } catch (error) {
+                    console.error('Error playing recorded video:', error);
+                    Alert.alert(
+                      'Playback Error',
+                      `Failed to play recorded video: ${error}`
+                    );
+                  }
+                }}
+              >
+                <Text style={styles.buttonText}>Play Recorded Video</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => {
+                  // Reset to the original video
+                  setVideoUrl(
+                    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+                  );
+                  Alert.alert('Reset', 'Player reset to original video');
+                }}
+              >
+                <Text style={styles.buttonText}>Reset Player</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Display Captured Image */}
         {capturedImage && (
           <View style={styles.captureContainer}>
@@ -574,6 +801,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
     backgroundColor: '#e0e0e0',
+  },
+  recordingButton: {
+    backgroundColor: '#dc3545', // Red color for recording
+  },
+  recordingStatus: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: 'rgba(220, 53, 69, 0.2)',
+    borderRadius: 5,
+    width: '90%',
+    alignItems: 'center',
+  },
+  recordingText: {
+    color: '#dc3545',
+    fontWeight: 'bold',
+  },
+  recordingPath: {
+    fontSize: 12,
+    color: '#555',
+    textAlign: 'center',
+    padding: 10,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    width: '100%',
   },
 });
 

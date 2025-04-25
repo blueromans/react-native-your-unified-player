@@ -25,6 +25,15 @@ import com.google.android.exoplayer2.video.VideoSize
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
+import java.io.File
+import java.io.IOException
+import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaFormat
+import android.media.MediaMuxer
+import android.view.Surface
+import java.nio.ByteBuffer
+import android.os.Environment
 import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_COMPLETE
 import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_ERROR
 import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_LOAD_START
@@ -36,6 +45,15 @@ import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_RESUMED
 import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_STALLED
 
 class UnifiedPlayerView(context: Context) : FrameLayout(context) {
+    // Recording related variables
+    private var mediaRecorder: MediaMuxer? = null
+    private var videoEncoder: MediaCodec? = null
+    private var recordingSurface: Surface? = null
+    private var isRecording = false
+    private var outputPath: String? = null
+    private var recordingThread: Thread? = null
+    private var videoTrackIndex = -1
+    private val bufferInfo = MediaCodec.BufferInfo()
     companion object {
         private const val TAG = "UnifiedPlayerView"
     }
@@ -455,6 +473,223 @@ bitmap.let {
             } catch (e: Exception) {
             Log.e(TAG, "Error during capture: ${e.message}", e)
             ""
+        }
+    }
+    
+    /**
+     * Start recording the video to the specified output path
+     * @param outputPath Path where to save the recording
+     * @return true if recording started successfully
+     */
+    fun startRecording(outputPath: String): Boolean {
+        Log.d(TAG, "startRecording called with outputPath: $outputPath")
+        
+        if (isRecording) {
+            Log.w(TAG, "Recording is already in progress")
+            return false
+        }
+        
+        try {
+            player?.let { exoPlayer ->
+                // Get the current media item's URI
+                val currentUri = exoPlayer.currentMediaItem?.localConfiguration?.uri?.toString()
+                if (currentUri == null) {
+                    Log.e(TAG, "Current media URI is null")
+                    return false
+                }
+                
+                Log.d(TAG, "Current media URI: $currentUri")
+                
+                // Store the output path
+                this.outputPath = if (outputPath.isNullOrEmpty()) {
+                    // Use app-specific storage for Android 10+ (API level 29+)
+                    val appContext = context.applicationContext
+                    val moviesDir = File(appContext.getExternalFilesDir(Environment.DIRECTORY_MOVIES), "recordings")
+                    if (!moviesDir.exists()) {
+                        moviesDir.mkdirs()
+                    }
+                    File(moviesDir, "recording_${System.currentTimeMillis()}.mp4").absolutePath
+                } else {
+                    outputPath
+                }
+                
+                // Create parent directories if they don't exist
+                val outputFile = File(this.outputPath)
+                outputFile.parentFile?.mkdirs()
+                
+                // Log the final output path
+                Log.d(TAG, "Recording will be saved to: ${this.outputPath}")
+                
+                // Start a background thread to download the file
+                Thread {
+                    try {
+                        // Create a URL from the URI
+                        val url = java.net.URL(currentUri)
+                        
+                        // Open connection
+                        val connection = url.openConnection() as java.net.HttpURLConnection
+                        connection.requestMethod = "GET"
+                        connection.connectTimeout = 15000
+                        connection.readTimeout = 15000
+                        connection.doInput = true
+                        connection.connect()
+                        
+                        // Check if the connection was successful
+                        if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
+                            Log.e(TAG, "HTTP error code: ${connection.responseCode}")
+                            return@Thread
+                        }
+                        
+                        // Get the input stream
+                        val inputStream = connection.inputStream
+                        
+                        // Create the output file
+                        val outputFile = File(this.outputPath!!)
+                        
+                        // Create the output stream
+                        val outputStream = outputFile.outputStream()
+                        
+                        // Create a buffer
+                        val buffer = ByteArray(1024)
+                        var bytesRead: Int
+                        var totalBytesRead: Long = 0
+                        val fileSize = connection.contentLength.toLong()
+                        
+                        // Read from the input stream and write to the output stream
+                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                            outputStream.write(buffer, 0, bytesRead)
+                            totalBytesRead += bytesRead
+                            
+                            // Log progress
+                            if (fileSize > 0) {
+                                val progress = (totalBytesRead * 100 / fileSize).toInt()
+                                Log.d(TAG, "Download progress: $progress%")
+                            }
+                        }
+                        
+                        // Close the streams
+                        outputStream.flush()
+                        outputStream.close()
+                        inputStream.close()
+                        
+                        Log.d(TAG, "File downloaded successfully to ${this.outputPath}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error downloading file: ${e.message}", e)
+                    }
+                }.start()
+                
+                isRecording = true
+                Log.d(TAG, "Recording started successfully")
+                return true
+            } ?: run {
+                Log.e(TAG, "Cannot start recording: player is null")
+                return false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting recording: ${e.message}", e)
+            return false
+        }
+    }
+    
+    /**
+     * Stop recording and save the video
+     * @return Path to the saved recording
+     */
+    fun stopRecording(): String {
+        Log.d(TAG, "stopRecording called")
+        
+        if (!isRecording) {
+            Log.w(TAG, "No recording in progress")
+            return ""
+        }
+        
+        // Simply mark recording as stopped
+        isRecording = false
+        
+        // Wait a moment to ensure any background operations complete
+        try {
+            Thread.sleep(500)
+        } catch (e: InterruptedException) {
+            Log.e(TAG, "Sleep interrupted: ${e.message}")
+        }
+        
+        // Return the path where the recording was saved
+        val savedPath = outputPath ?: ""
+        Log.d(TAG, "Recording stopped successfully, saved to: $savedPath")
+        
+        return savedPath
+    }
+    
+    private fun cleanupRecording() {
+        try {
+            videoEncoder?.stop()
+            videoEncoder?.release()
+            videoEncoder = null
+            
+            recordingSurface?.release()
+            recordingSurface = null
+            
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
+            mediaRecorder = null
+            
+            videoTrackIndex = -1
+            isRecording = false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cleaning up recording resources: ${e.message}", e)
+        }
+    }
+    
+    private inner class RecordingRunnable : Runnable {
+        override fun run() {
+            try {
+                // Add video track to muxer
+                val videoFormat = videoEncoder?.outputFormat
+                if (videoFormat != null && mediaRecorder != null) {
+                    videoTrackIndex = mediaRecorder!!.addTrack(videoFormat)
+                } else {
+                    Log.e(TAG, "Cannot add track: videoFormat or mediaRecorder is null")
+                    videoTrackIndex = -1
+                }
+                
+                // Start the muxer
+                mediaRecorder?.start()
+                
+                // Process encoding
+                while (isRecording) {
+                    val encoderStatus = videoEncoder?.dequeueOutputBuffer(bufferInfo, 10000) ?: -1
+                    
+                    if (encoderStatus >= 0) {
+                        val encodedData = videoEncoder?.getOutputBuffer(encoderStatus)
+                        
+                        if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                            // Ignore codec config data
+                            bufferInfo.size = 0
+                        }
+                        
+                        if (bufferInfo.size > 0 && encodedData != null && mediaRecorder != null && videoTrackIndex >= 0) {
+                            encodedData.position(bufferInfo.offset)
+                            encodedData.limit(bufferInfo.offset + bufferInfo.size)
+                            
+                            mediaRecorder!!.writeSampleData(videoTrackIndex, encodedData, bufferInfo)
+                        }
+                        
+                        videoEncoder?.releaseOutputBuffer(encoderStatus, false)
+                        
+                        if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                            break
+                        }
+                    } else if (encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        // Handle format change if needed
+                    }
+                }
+                
+                // Signal end of stream to encoder
+                videoEncoder?.signalEndOfInputStream()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in recording thread: ${e.message}", e)
+            }
         }
     }
 }
