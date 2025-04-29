@@ -82,13 +82,14 @@ export default MyPlayerComponent;
 
 | Prop | Type | Required | Description |
 |------|------|----------|-------------|
-| `videoUrl` | `string` | Yes | Video source URL |
+| `videoUrl` | `string` \| `string[]` | Yes | Video source URL or an array of URLs for a playlist. |
 | `style` | `ViewStyle` | Yes | Apply custom styling |
 | `autoplay` | `boolean` | No | Autoplay video when loaded |
-| `loop` | `boolean` | No | Should video loop when finished |
+| `loop` | `boolean` | No | Should the video/playlist loop when finished. **Note:** Playlist advancement and looping are handled in the JavaScript layer via the `onPlaybackComplete` callback. The native player only loops single videos based on this prop. |
+| `onLoadStart` | `(event: { nativeEvent?: { index?: number } }) => void` | No | Callback when video begins loading. The `event.nativeEvent` may contain an `index` property on Android when playing a playlist. |
 | `onReadyToPlay` | `() => void` | No | Callback when video is ready to play |
 | `onError` | `(error: any) => void` | No | Callback when an error occurs |
-| `onPlaybackComplete` | `() => void` | No | Callback when video playback finishes |
+| `onPlaybackComplete` | `() => void` | No | Callback when video playback finishes. Use this callback to implement playlist advancement logic in your JavaScript code. |
 | `onProgress` | `(data: { currentTime: number; duration: number }) => void` | No | Callback for playback progress |
 
 ## Events
