@@ -23,6 +23,9 @@ function App(): React.JSX.Element {
   const [videoUrl, setVideoUrl] = useState<string>(
     'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
   );
+  const [thumbnailUrl, _setThumbnailUrl] = useState<string>(
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg'
+  );
   const [autoplay, setAutoplay] = useState(true);
   const [loop, setLoop] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -515,6 +518,7 @@ function App(): React.JSX.Element {
       <UnifiedPlayerView
         ref={playerRef}
         videoUrl={videoUrl}
+        thumbnailUrl={thumbnailUrl} // Add thumbnail URL prop
         autoplay={autoplay}
         loop={loop}
         isPaused={isPaused}

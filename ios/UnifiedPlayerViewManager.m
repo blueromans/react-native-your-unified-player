@@ -12,7 +12,9 @@
 #import "UnifiedPlayerUIView.h"
 
 // Main player view implementation
-@implementation UnifiedPlayerUIView
+@implementation UnifiedPlayerUIView {
+    UIImageView *_thumbnailImageView;
+}
 
 - (instancetype)init {
     if ((self = [super init])) {
@@ -34,6 +36,13 @@
         // Important: Enable content mode to scale properly
         self.contentMode = UIViewContentModeScaleAspectFit;
         self.clipsToBounds = YES;
+        
+        // Create thumbnail image view
+        _thumbnailImageView = [[UIImageView alloc] initWithFrame:CGRectZero];
+        _thumbnailImageView.contentMode = UIViewContentModeScaleAspectFill;
+        _thumbnailImageView.clipsToBounds = YES;
+        _thumbnailImageView.hidden = YES;
+        [self addSubview:_thumbnailImageView];
         
         // After the view is fully initialized, set it as the drawable
         _player.drawable = self;
@@ -85,6 +94,66 @@
         // Let VLC know the size has changed but don't force any redraws here
         // This may be VLC-specific and not required for all implementations
     }
+    
+    // Update thumbnail image view frame
+    if (_thumbnailImageView) {
+        _thumbnailImageView.frame = bounds;
+    }
+}
+
+- (void)setupThumbnailWithUrlString:(NSString *)thumbnailUrlString {
+    RCTLogInfo(@"[UnifiedPlayerViewManager] setupThumbnailWithUrlString: %@", thumbnailUrlString);
+    
+    if (!thumbnailUrlString || [thumbnailUrlString length] == 0) {
+        // Hide thumbnail if URL is empty
+        _thumbnailImageView.hidden = YES;
+        return;
+    }
+    
+    // Make sure thumbnail view is properly sized
+    _thumbnailImageView.frame = self.bounds;
+    
+    // Show the thumbnail view
+    _thumbnailImageView.hidden = NO;
+    
+    // Load the image from URL
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSURL *imageURL = [NSURL URLWithString:thumbnailUrlString];
+        if (!imageURL) {
+            // Try with encoding if the original URL doesn't work
+            NSString *escapedString = [thumbnailUrlString stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+            imageURL = [NSURL URLWithString:escapedString];
+            
+            if (!imageURL) {
+                RCTLogError(@"[UnifiedPlayerViewManager] Invalid thumbnail URL format");
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self->_thumbnailImageView.hidden = YES;
+                });
+                return;
+            }
+        }
+        
+        NSData *imageData = [NSData dataWithContentsOfURL:imageURL];
+        if (imageData) {
+            UIImage *image = [UIImage imageWithData:imageData];
+            if (image) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self->_thumbnailImageView.image = image;
+                    self->_thumbnailImageView.hidden = NO;
+                });
+            } else {
+                RCTLogError(@"[UnifiedPlayerViewManager] Failed to create image from data");
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self->_thumbnailImageView.hidden = YES;
+                });
+            }
+        } else {
+            RCTLogError(@"[UnifiedPlayerViewManager] Failed to load image data from URL");
+            dispatch_async(dispatch_get_main_queue(), ^{
+                self->_thumbnailImageView.hidden = YES;
+            });
+        }
+    });
 }
 
 - (void)didMoveToSuperview {
@@ -681,6 +750,11 @@
         if (videoTracks.count > 0) {
             RCTLogInfo(@"[UnifiedPlayerViewManager] Video tracks found: %lu", (unsigned long)videoTracks.count);
             
+            // Hide thumbnail when video starts playing
+            if (_thumbnailImageView) {
+                _thumbnailImageView.hidden = YES;
+            }
+            
             // Send playing event when we actually start playing
             [self sendEvent:@"onPlaying" body:@{}];
             
@@ -837,6 +911,13 @@ RCT_EXPORT_MODULE(UnifiedPlayerView)
 RCT_CUSTOM_VIEW_PROPERTY(videoUrl, NSString, UnifiedPlayerUIView)
 {
     [view setupWithVideoUrlString:json];
+}
+
+// Thumbnail URL property
+RCT_CUSTOM_VIEW_PROPERTY(thumbnailUrl, NSString, UnifiedPlayerUIView)
+{
+    view.thumbnailUrlString = json;
+    [view setupThumbnailWithUrlString:json];
 }
 
 // Autoplay property

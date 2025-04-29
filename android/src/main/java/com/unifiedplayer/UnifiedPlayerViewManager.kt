@@ -23,6 +23,11 @@ class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
     view.setVideoUrl(url)
   }
 
+  @ReactProp(name = "thumbnailUrl")
+  fun setThumbnailUrl(view: UnifiedPlayerView, url: String?) {
+    view.setThumbnailUrl(url)
+  }
+
   @ReactProp(name = "autoplay")
   fun setAutoplay(view: UnifiedPlayerView, autoplay: Boolean) {
     view.setAutoplay(autoplay)

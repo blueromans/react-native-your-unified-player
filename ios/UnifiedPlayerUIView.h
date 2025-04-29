@@ -11,6 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, strong) VLCMediaPlayer *player;
 @property (nonatomic, copy) NSString *videoUrlString;
+@property (nonatomic, copy) NSString *thumbnailUrlString;
 @property (nonatomic, assign) BOOL autoplay;
 @property (nonatomic, assign) BOOL loop;
 @property (nonatomic, assign) BOOL isPaused;
@@ -40,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Method declarations
 - (void)setupWithVideoUrlString:(NSString *)videoUrlString;
+- (void)setupThumbnailWithUrlString:(NSString *)thumbnailUrlString;
 - (void)play;
 - (void)pause;
 - (void)seekToTime:(NSNumber *)timeNumber;

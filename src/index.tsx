@@ -27,6 +27,9 @@ export type UnifiedPlayerProps = {
   // Video source URL
   videoUrl: string;
 
+  // Thumbnail image URL to display until video starts playing
+  thumbnailUrl?: string;
+
   // Apply custom styling
   style: ViewStyle;
 

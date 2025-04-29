@@ -14,6 +14,9 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ImageView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
 import com.facebook.react.bridge.Arguments
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
@@ -59,9 +62,11 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     }
 
     private var videoUrl: String? = null
+    private var thumbnailUrl: String? = null
     private var autoplay: Boolean = true
     private var loop: Boolean = false
     private var textureView: android.view.TextureView
+    private var thumbnailImageView: ImageView? = null
     internal var player: ExoPlayer? = null
     private var currentProgress = 0
     private var isPaused = false
@@ -100,16 +105,27 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         // Create ExoPlayer
         player = ExoPlayer.Builder(context).build()
 
-    // Create TextureView for video rendering
-    textureView = android.view.TextureView(context).apply {
-        layoutParams = LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            LayoutParams.MATCH_PARENT
-        )
-    }
+        // Create TextureView for video rendering
+        textureView = android.view.TextureView(context).apply {
+            layoutParams = LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.MATCH_PARENT
+            )
+        }
 
-    // Add TextureView to the view hierarchy
-    addView(textureView)
+        // Create ImageView for thumbnail
+        thumbnailImageView = ImageView(context).apply {
+            layoutParams = LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.MATCH_PARENT
+            )
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            visibility = View.GONE
+        }
+
+        // Add views to the layout (thumbnail on top of TextureView)
+        addView(textureView)
+        addView(thumbnailImageView)
 
     // We'll set the video surface when the TextureView's surface is available
     // in the onSurfaceTextureAvailable callback
@@ -145,6 +161,8 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                 Log.d(TAG, "onIsPlayingChanged: $isPlaying") // Added log
                 if (isPlaying) {
                     Log.d(TAG, "ExoPlayer is now playing")
+                    // Hide thumbnail when video starts playing
+                    thumbnailImageView?.visibility = View.GONE
                     sendEvent(EVENT_RESUMED, Arguments.createMap())
                     sendEvent(EVENT_PLAYING, Arguments.createMap())
                 } else {
@@ -271,6 +289,33 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     fun setLoop(value: Boolean) {
         loop = value
         player?.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+    }
+
+    fun setThumbnailUrl(url: String?) {
+        Log.d(TAG, "Setting thumbnail URL: $url")
+        
+        thumbnailUrl = url
+        
+        if (url != null && url.isNotEmpty()) {
+            // Show the thumbnail ImageView
+            thumbnailImageView?.visibility = View.VISIBLE
+            
+            // Load the thumbnail image using Glide
+            try {
+                Glide.with(context)
+                    .load(url)
+                    .apply(RequestOptions().centerCrop())
+                    .into(thumbnailImageView!!)
+                
+                Log.d(TAG, "Thumbnail image loading started")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading thumbnail image: ${e.message}", e)
+                thumbnailImageView?.visibility = View.GONE
+            }
+        } else {
+            // Hide the thumbnail if URL is null or empty
+            thumbnailImageView?.visibility = View.GONE
+        }
     }
 
     fun setIsPaused(isPaused: Boolean) {
