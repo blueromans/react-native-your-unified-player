@@ -30,6 +30,7 @@ import com.facebook.react.bridge.ReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
 import java.io.File
 import java.io.IOException
+import java.util.Collections // Import for Collections.emptyList()
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -61,7 +62,11 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         private const val TAG = "UnifiedPlayerView"
     }
 
-    private var videoUrl: String? = null
+    // Player state
+    private var videoUrl: String? = null // Single video URL
+    private var videoUrls: List<String> = emptyList() // Playlist URLs
+    private var currentVideoIndex: Int = 0
+    private var isPlaylist: Boolean = false
     private var thumbnailUrl: String? = null
     private var autoplay: Boolean = true
     private var loop: Boolean = false
@@ -79,7 +84,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                 val duration = it.duration.toFloat() / 1000f
 
                 // Log the actual values for debugging
-                Log.d(TAG, "Progress values - currentTime: $currentTime, duration: $duration, raw duration: ${it.duration}")
+                // Log.d(TAG, "Progress values - currentTime: $currentTime, duration: $duration, raw duration: ${it.duration}")
 
                 // Only send valid duration values
                 if (it.duration > 0) {
@@ -87,10 +92,10 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                     event.putDouble("currentTime", currentTime.toDouble())
                     event.putDouble("duration", duration.toDouble())
                     
-                    Log.d(TAG, "Sending progress event: currentTime=$currentTime, duration=$duration")
+                    // Log.d(TAG, "Sending progress event: currentTime=$currentTime, duration=$duration")
                     sendEvent(EVENT_PROGRESS, event)
                 } else {
-                    Log.d(TAG, "Not sending progress event because duration is $duration (raw: ${it.duration})")
+                    // Log.d(TAG, "Not sending progress event because duration is $duration (raw: ${it.duration})")
                 }
             } ?: Log.e(TAG, "Cannot send progress event: player is null")
             
@@ -137,15 +142,52 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
 
         player?.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                Log.d(TAG, "onPlaybackStateChanged: $playbackState") // Added log
+                Log.d(TAG, "onPlaybackStateChanged: $playbackState")
                 when (playbackState) {
                     Player.STATE_READY -> {
                         Log.d(TAG, "ExoPlayer STATE_READY")
+                        // Ensure thumbnail is hidden when ready (might be needed if autoplay=false)
+                        if (player?.isPlaying == false) { // Check if not already playing
+                             thumbnailImageView?.visibility = View.GONE
+                        }
                         sendEvent(EVENT_READY, Arguments.createMap())
+                        // Start progress updates when ready
+                        startProgressUpdates()
                     }
                     Player.STATE_ENDED -> {
                         Log.d(TAG, "ExoPlayer STATE_ENDED")
-                        sendEvent(EVENT_COMPLETE, Arguments.createMap())
+                        if (isPlaylist) {
+                            // Playlist logic
+                            val nextIndex = currentVideoIndex + 1
+                            if (nextIndex < videoUrls.size) {
+                                // Play next video in the list
+                                Log.d(TAG, "Playlist: Loading next video at index $nextIndex")
+                                loadVideoAtIndex(nextIndex)
+                                // Don't send EVENT_COMPLETE for individual items in playlist
+                            } else {
+                                // Reached the end of the playlist
+                                if (loop) {
+                                    // Loop playlist: Go back to the first video
+                                    Log.d(TAG, "Playlist: Looping back to start")
+                                    loadVideoAtIndex(0)
+                                    // Don't send EVENT_COMPLETE when looping playlist
+                                } else {
+                                    // End of playlist, not looping
+                                    Log.d(TAG, "Playlist: Reached end, not looping")
+                                    currentVideoIndex = 0 // Reset index for potential future play
+                                    sendEvent(EVENT_COMPLETE, Arguments.createMap()) // Send completion for the whole list
+                                }
+                            }
+                        } else {
+                            // Single video logic (ExoPlayer handles looping via repeatMode)
+                            if (!loop) {
+                                // Send completion event only if not looping a single video
+                                sendEvent(EVENT_COMPLETE, Arguments.createMap())
+                            } else {
+                                Log.d(TAG, "Single video ended and loop is ON - ExoPlayer will repeat.")
+                                // Optionally send an event here if needed for single loop cycle completion
+                            }
+                        }
                     }
                     Player.STATE_BUFFERING -> {
                         Log.d(TAG, "ExoPlayer STATE_BUFFERING")
@@ -225,60 +267,87 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         })
     }
 
-    fun setVideoUrl(url: String?) {
-        Log.d(TAG, "Setting video URL: $url")
-        
-        if (url == null || url.isEmpty()) {
-            Log.e(TAG, "Empty or null URL provided")
-            return
-        }
-        
-        videoUrl = url
-        
+    // Helper function to load and prepare a video URL
+    private fun loadVideoSource(url: String) {
+        Log.d(TAG, "Loading video source: $url")
         try {
-            // Create a MediaItem
             val mediaItem = MediaItem.fromUri(url)
-            
-            // Reset the player to ensure clean state
-            player?.stop()
-            player?.clearMediaItems()
-            
-            // Set the media item
+            player?.stop() // Stop previous playback
+            player?.clearMediaItems() // Clear previous items
             player?.setMediaItem(mediaItem)
-            
-            // Prepare the player (this will start loading the media)
             player?.prepare()
+            player?.playWhenReady = autoplay && !isPaused // Apply autoplay and paused state
             
-            // Set playWhenReady based on autoplay setting
-            player?.playWhenReady = autoplay && !isPaused
-            
-            // Set repeat mode based on loop setting
-            player?.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
-            
-            // Log that we've set up the player
-            Log.d(TAG, "ExoPlayer configured with URL: $url, autoplay: $autoplay, loop: $loop")
-            
-            // Add a listener to check when the player is ready and has duration
-            player?.addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_READY) {
-                        val duration = player?.duration ?: 0
-                        Log.d(TAG, "Player ready with duration: ${duration / 1000f} seconds")
-                        
-                        // Force a progress update immediately
-                        progressRunnable.run()
-                    }
-                }
-            })
+            // Explicitly set repeat mode here based on current state
+            if (isPlaylist) {
+                 player?.repeatMode = Player.REPEAT_MODE_OFF // Force OFF for playlists
+            } else {
+                 player?.repeatMode = if (loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF // Use loop prop for single videos
+             }
+
+            Log.d(TAG, "ExoPlayer configured with URL: $url, autoplay: $autoplay, loop: $loop, isPaused: $isPaused, repeatMode: ${player?.repeatMode}")
+            // Send load start event, include index if it's a playlist
+            val loadStartEvent = Arguments.createMap()
+            if (isPlaylist) {
+                loadStartEvent.putInt("index", currentVideoIndex)
+            }
+            sendEvent(EVENT_LOAD_START, loadStartEvent) 
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting video URL: ${e.message}", e)
-            
-            // Send error event
+            Log.e(TAG, "Error setting video source: ${e.message}", e)
             val event = Arguments.createMap()
             event.putString("code", "SOURCE_ERROR")
             event.putString("message", "Failed to load video source: $url")
             sendEvent(EVENT_ERROR, event)
         }
+    }
+
+    // Method to load a specific video from the playlist
+    private fun loadVideoAtIndex(index: Int) {
+        if (index >= 0 && index < videoUrls.size) {
+            currentVideoIndex = index
+            val url = videoUrls[index]
+            Log.d(TAG, "Loading playlist item at index $index: $url")
+            loadVideoSource(url)
+        } else {
+            Log.e(TAG, "Invalid index $index for playlist size ${videoUrls.size}")
+        }
+    }
+
+    // Called by ViewManager for single URL
+    fun setVideoUrl(url: String?) {
+        Log.d(TAG, "Setting single video URL: $url")
+        isPlaylist = false // Mark as not a playlist
+        videoUrls = emptyList() // Clear any previous playlist
+        currentVideoIndex = 0
+
+        if (url != null && url.isNotEmpty()) { // Check for non-null and non-empty
+            videoUrl = url // Store the non-null url
+            loadVideoSource(url) // Call loadVideoSource only when url is guaranteed non-null
+        } else {
+            Log.w(TAG, "Received null or empty URL for single video.")
+            player?.stop()
+            player?.clearMediaItems()
+            videoUrl = null // Ensure internal state is cleared
+            // Optionally show thumbnail or placeholder if URL is cleared
+        }
+    }
+
+    // Called by ViewManager for URL list (playlist)
+    fun setVideoUrls(urls: List<String>) {
+        Log.d(TAG, "Setting video URL list (playlist) with ${urls.size} items.")
+        if (urls.isEmpty()) {
+            Log.w(TAG, "Received empty URL list.")
+            setVideoUrl(null) // Treat empty list as clearing the source
+            return
+        }
+        isPlaylist = true // Mark as a playlist
+        videoUrl = null // Clear single video URL
+        videoUrls = urls
+        currentVideoIndex = 0 // Start from the beginning
+
+        // Load the first video in the playlist
+        loadVideoAtIndex(currentVideoIndex)
     }
 
     fun setAutoplay(value: Boolean) {
@@ -287,8 +356,17 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     }
 
     fun setLoop(value: Boolean) {
+        Log.d(TAG, "Setting loop to: $value, isPlaylist: $isPlaylist")
         loop = value
-        player?.repeatMode = if (loop) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+        // Only set ExoPlayer's repeatMode if NOT in playlist mode.
+        // Playlist looping is handled manually in onPlaybackStateChanged.
+        if (!isPlaylist) {
+             // Use REPEAT_MODE_ONE for single item looping
+             player?.repeatMode = if (loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+        } else {
+             // Ensure repeat mode is off when handling playlists manually
+             player?.repeatMode = Player.REPEAT_MODE_OFF
+        }
     }
 
     fun setThumbnailUrl(url: String?) {
@@ -346,7 +424,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
             it.seekTo(milliseconds)
             
             // Force a progress update after seeking
-        progressRunnable.run()
+            progressRunnable.run()
         } ?: Log.e(TAG, "Cannot seek: player is null")
     }
 
@@ -381,7 +459,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     private fun sendEvent(eventName: String, params: WritableMap) {
         try {
             // Log the event for debugging
-            Log.d(TAG, "Sending direct event: $eventName with params: $params")
+            // Log.d(TAG, "Sending direct event: $eventName with params: $params")
             
             // Map event names to their corresponding top event names
             val topEventName = when (eventName) {
@@ -406,13 +484,22 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         }
     }
     
-    // Add a method to explicitly start progress updates
+    // Method to explicitly start progress updates
     private fun startProgressUpdates() {
-        Log.d(TAG, "Starting progress updates")
-        // Remove any existing callbacks to avoid duplicates
+        // Only start if player is ready and has duration
+        if (player?.playbackState == Player.STATE_READY && (player?.duration ?: 0) > 0) {
+             Log.d(TAG, "Starting progress updates")
+             progressHandler.removeCallbacks(progressRunnable) // Remove existing callbacks
+             progressHandler.post(progressRunnable) // Post the runnable
+        } else {
+             Log.d(TAG, "Skipping progress updates start: Player not ready or duration is 0")
+        }
+    }
+
+    // Method to stop progress updates
+    private fun stopProgressUpdates() {
+        Log.d(TAG, "Stopping progress updates")
         progressHandler.removeCallbacks(progressRunnable)
-        // Post the runnable to start updates
-        progressHandler.post(progressRunnable)
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
@@ -453,14 +540,17 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         // Log.d(TAG, "TextureView onSurfaceTextureUpdated")
     }
 }
-        startProgressUpdates() // Use the new method to start progress updates
+        // Don't start progress updates here automatically, wait for STATE_READY
+        // startProgressUpdates()
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         Log.d(TAG, "UnifiedPlayerView onDetachedFromWindow")
-        progressHandler.removeCallbacks(progressRunnable) // Stop progress updates
+        stopProgressUpdates() // Stop progress updates
         player?.release()
+        player = null // Ensure player is nullified
+        cleanupRecording() // Clean up recording resources if any
     }
 
     fun capture(): String {

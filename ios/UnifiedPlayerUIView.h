@@ -10,8 +10,11 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UnifiedPlayerUIView : UIView <VLCMediaPlayerDelegate>
 
 @property (nonatomic, strong) VLCMediaPlayer *player;
-@property (nonatomic, copy) NSString *videoUrlString;
-@property (nonatomic, copy) NSString *thumbnailUrlString;
+@property (nonatomic, copy, nullable) NSString *videoUrlString; // Single URL
+@property (nonatomic, copy, nullable) NSArray<NSString *> *videoUrlArray; // Playlist URLs
+@property (nonatomic, assign) NSInteger currentVideoIndex;
+@property (nonatomic, assign) BOOL isPlaylist;
+@property (nonatomic, copy, nullable) NSString *thumbnailUrlString;
 @property (nonatomic, assign) BOOL autoplay;
 @property (nonatomic, assign) BOOL loop;
 @property (nonatomic, assign) BOOL isPaused;
@@ -40,8 +43,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) RCTDirectEventBlock onPaused;
 
 // Method declarations
-- (void)setupWithVideoUrlString:(NSString *)videoUrlString;
-- (void)setupThumbnailWithUrlString:(NSString *)thumbnailUrlString;
+- (void)setupWithVideoUrlString:(nullable NSString *)videoUrlString;
+- (void)setupWithVideoUrlArray:(NSArray<NSString *> *)urlArray; // New method for playlists
+- (void)setupThumbnailWithUrlString:(nullable NSString *)thumbnailUrlString;
 - (void)play;
 - (void)pause;
 - (void)seekToTime:(NSNumber *)timeNumber;

@@ -18,19 +18,31 @@ import {
   UnifiedPlayerEventTypes, // Import event types
 } from 'react-native-unified-player';
 
+// Define some sample playlist URLs
+const playlistUrls = [
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+];
+
+const singleVideoUrl =
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+const singleThumbnailUrl =
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg';
+
 function App(): React.JSX.Element {
   const playerRef = useRef(null);
-  const [videoUrl, setVideoUrl] = useState<string>(
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
-  );
-  const [thumbnailUrl, _setThumbnailUrl] = useState<string>(
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg'
-  );
+  // currentVideoSource will now always hold a single URL string
+  const [currentVideoSource, setCurrentVideoSource] =
+    useState<string>(singleVideoUrl);
+  const [isPlaylistMode, setIsPlaylistMode] = useState(false);
+  const [thumbnailUrl, _setThumbnailUrl] = useState<string>(singleThumbnailUrl);
   const [autoplay, setAutoplay] = useState(true);
-  const [loop, setLoop] = useState(false);
+  const [loop, setLoop] = useState(false); // Loop prop controls native looping for single video OR playlist looping in JS
   const [isPaused, setIsPaused] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [currentPlayingIndex, setCurrentPlayingIndex] = useState(0); // Track playlist index
 
   // Track if the player is ready
   const [isPlayerReady, setIsPlayerReady] = useState(false);
@@ -104,21 +116,39 @@ function App(): React.JSX.Element {
     };
   }, [progressEventsReceived, reinitializePlayer]); // Added reinitializePlayer back
 
+  // Effect to update the video source based on playlist mode and index
+  useEffect(() => {
+    if (isPlaylistMode) {
+      if (
+        currentPlayingIndex >= 0 &&
+        currentPlayingIndex < playlistUrls.length
+      ) {
+        const nextUrl = playlistUrls[currentPlayingIndex]!;
+        console.log(
+          `useEffect setting source to playlist index ${currentPlayingIndex}: ${nextUrl}`
+        );
+        setCurrentVideoSource(nextUrl);
+      } else {
+        console.warn(`Invalid playlist index: ${currentPlayingIndex}`);
+        // Optionally handle invalid index, e.g., reset to 0 or switch mode
+        setCurrentPlayingIndex(0);
+        setIsPlaylistMode(false); // Switch back to single mode if index is bad
+      }
+    } else {
+      // If not in playlist mode, ensure the source is the single video URL
+      if (currentVideoSource !== singleVideoUrl) {
+        console.log(
+          `useEffect setting source to single video: ${singleVideoUrl}`
+        );
+        setCurrentVideoSource(singleVideoUrl);
+      }
+    }
+    // Dependency array: run when mode or index changes
+  }, [isPlaylistMode, currentPlayingIndex, currentVideoSource]);
+
   const handleProgress = (data: any) => {
     // console.log('Progress event received:', data); // Reduce log verbosity
-
-    // Log only the essential properties to avoid cyclical structure issues
-    // console.log('Progress event properties:', {
-    //   currentTime: data.nativeEvent?.currentTime,
-    //   duration: data.nativeEvent?.duration,
-    //   hasNativeEvent: !!data.nativeEvent,
-    //   nativeEventKeys: data.nativeEvent ? Object.keys(data.nativeEvent) : [],
-    // });
-
-    // Check if nativeEvent exists and contains the data
     const eventData = data.nativeEvent || data;
-
-    // Only update if we have valid data
     if (
       eventData &&
       typeof eventData.duration === 'number' &&
@@ -126,68 +156,39 @@ function App(): React.JSX.Element {
     ) {
       setCurrentTime(eventData.currentTime);
       setDuration(eventData.duration);
-
-      // Store the last known values
       lastProgressTimeRef.current = eventData.currentTime;
       lastDurationRef.current = eventData.duration;
-
-      // Mark that we've received progress events
       if (!progressEventsReceived) {
         setProgressEventsReceived(true);
         console.log('Progress events are being received with valid data');
       }
-    } else {
-      // console.log( // Reduce log verbosity
-      //   'Progress event has invalid duration:',
-      //   eventData ? eventData.duration : 'eventData is null/undefined'
-      // );
     }
   };
 
   // --- Event Handlers ---
   const handleLoadStart = () => {
+    // Native code no longer sends index; JS layer manages playlist state.
     console.log(`Event: ${UnifiedPlayerEventTypes.LOAD_START}`);
+    // Reset player readiness and progress state for the new video.
+    setIsPlayerReady(false);
+    setProgressEventsReceived(false);
+    setCurrentTime(0);
+    setDuration(0);
   };
 
   const handleReadyToPlay = () => {
     console.log(`Event: ${UnifiedPlayerEventTypes.READY}`);
     setIsPlayerReady(true);
-
-    // Start playing to initialize progress events
     if (autoplay) {
-      // Add a small delay to ensure the player is fully initialized
       setTimeout(() => {
         const viewTag = getPlayerViewTag();
         if (viewTag !== null) {
-          console.log('Auto-playing to initialize progress events');
-
-          UnifiedPlayer.play(viewTag)
-            .then(() => {
-              // If we still don't get progress events after playing, try seeking to 0
-              // This can sometimes kick-start the progress events
-              return new Promise<void>((resolve) => {
-                setTimeout(() => {
-                  if (!progressEventsReceived) {
-                    console.log(
-                      'Trying to kick-start progress events with a seek to 0'
-                    );
-                    UnifiedPlayer.seekTo(viewTag, 0)
-                      .then(() => resolve())
-                      .catch((error) => {
-                        console.warn('Kick-start seek failed:', error);
-                        resolve();
-                      });
-                  } else {
-                    resolve();
-                  }
-                }, 1000);
-              });
-            })
-            .catch((error) => {
-              console.warn('Auto-play failed:', error);
-            });
+          console.log('Auto-playing video');
+          UnifiedPlayer.play(viewTag).catch((error) => {
+            console.warn('Auto-play failed:', error);
+          });
         }
-      }, 500);
+      }, 500); // Delay might still be needed
     }
   };
 
@@ -198,6 +199,31 @@ function App(): React.JSX.Element {
 
   const handlePlaybackComplete = () => {
     console.log(`Event: ${UnifiedPlayerEventTypes.COMPLETE}`);
+    // Playlist logic is now handled entirely in JS for both platforms
+    if (isPlaylistMode) {
+      const isLastVideo = currentPlayingIndex === playlistUrls.length - 1;
+      if (isLastVideo && !loop) {
+        console.log('Playlist completed.');
+        // Reset index but stay in playlist mode, showing the first item again (paused)
+        setCurrentPlayingIndex(0);
+        // Don't automatically set source here, useEffect will handle it based on index change
+      } else {
+        // Advance to the next video index or loop back to the start
+        const nextIndex = (currentPlayingIndex + 1) % playlistUrls.length;
+        console.log(`Advancing playlist index to ${nextIndex}`);
+        // Only update the index state. useEffect will update the source.
+        setCurrentPlayingIndex(nextIndex);
+      }
+    } else if (!isPlaylistMode && loop) {
+      // Handle single video looping in JS if native doesn't (belt and suspenders)
+      console.log('Single video ended, looping (JS fallback)');
+      const viewTag = getPlayerViewTag();
+      if (viewTag) {
+        UnifiedPlayer.seekTo(viewTag, 0).then(() =>
+          UnifiedPlayer.play(viewTag)
+        );
+      }
+    }
   };
 
   const handlePlaybackStalled = () => {
@@ -241,29 +267,20 @@ function App(): React.JSX.Element {
     if (Platform.OS !== 'android') {
       return true;
     }
-
     try {
-      // For Android 13+ (API 33+), we need to request specific permissions
       if (Platform.Version >= 33) {
         const result = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO
         );
         return result === PermissionsAndroid.RESULTS.GRANTED;
-      }
-      // For Android 10+ (API 29+), we need to use scoped storage
-      else if (Platform.Version >= 29) {
-        // For API 29+, we don't need WRITE_EXTERNAL_STORAGE for app-specific files
+      } else if (Platform.Version >= 29) {
         return true;
-      }
-      // For older Android versions, request traditional storage permissions
-      else {
+      } else {
         const permissions = [
           PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
         ];
-
         const granted = await PermissionsAndroid.requestMultiple(permissions);
-
         return (
           granted[PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE] ===
             PermissionsAndroid.RESULTS.GRANTED &&
@@ -285,7 +302,6 @@ function App(): React.JSX.Element {
         Alert.alert('Recording', 'Recording is already in progress');
         return;
       }
-
       if (!isPlayerReady || !progressEventsReceived) {
         Alert.alert(
           'Cannot Record',
@@ -293,8 +309,6 @@ function App(): React.JSX.Element {
         );
         return;
       }
-
-      // Request permissions first
       const hasPermissions = await requestStoragePermissions();
       if (!hasPermissions) {
         Alert.alert(
@@ -303,7 +317,6 @@ function App(): React.JSX.Element {
         );
         return;
       }
-
       try {
         console.log('Starting recording...');
         const result = await UnifiedPlayer.startRecording(viewTag);
@@ -330,12 +343,10 @@ function App(): React.JSX.Element {
         Alert.alert('Recording', 'No recording in progress');
         return;
       }
-
       try {
         console.log('Stopping recording...');
         const filePath = await UnifiedPlayer.stopRecording(viewTag);
         setIsRecording(false);
-
         if (filePath && filePath.length > 0) {
           setRecordedVideoPath(filePath);
           Alert.alert('Recording Completed', `Video saved to: ${filePath}`);
@@ -369,7 +380,6 @@ function App(): React.JSX.Element {
   const handlePlay = () => {
     const viewTag = getPlayerViewTag();
     console.log('Play button pressed, viewTag:', viewTag);
-
     if (viewTag !== null) {
       UnifiedPlayer.play(viewTag)
         .then(() => {
@@ -388,7 +398,6 @@ function App(): React.JSX.Element {
   const handlePause = () => {
     const viewTag = getPlayerViewTag();
     console.log('Pause button pressed, viewTag:', viewTag);
-
     if (viewTag !== null) {
       UnifiedPlayer.pause(viewTag)
         .then(() => {
@@ -406,7 +415,6 @@ function App(): React.JSX.Element {
 
   const handleSeekTo = (time: number) => {
     console.log('Seek button pressed, attempting to seek to:', time);
-
     if (!progressEventsReceived) {
       console.warn('Cannot seek: No progress events received yet');
       Alert.alert(
@@ -415,7 +423,6 @@ function App(): React.JSX.Element {
       );
       return;
     }
-
     const viewTag = getPlayerViewTag();
     if (viewTag !== null) {
       const wasPlaying = !isPaused;
@@ -445,7 +452,6 @@ function App(): React.JSX.Element {
 
   const handleGetCurrentTime = async () => {
     console.log('Get current time button pressed');
-
     if (!progressEventsReceived) {
       console.warn('Cannot get current time: No progress events received yet');
       Alert.alert(
@@ -454,7 +460,6 @@ function App(): React.JSX.Element {
       );
       return;
     }
-
     try {
       const viewTag = getPlayerViewTag();
       if (viewTag !== null) {
@@ -479,7 +484,6 @@ function App(): React.JSX.Element {
 
   const handleGetDuration = async () => {
     console.log('Get duration button pressed');
-
     if (!progressEventsReceived) {
       console.warn('Cannot get duration: No progress events received yet');
       Alert.alert(
@@ -488,7 +492,6 @@ function App(): React.JSX.Element {
       );
       return;
     }
-
     try {
       const viewTag = getPlayerViewTag();
       if (viewTag !== null) {
@@ -511,16 +514,19 @@ function App(): React.JSX.Element {
     }
   };
 
+  // Use the state variable directly for display
+  const displayedIndex = currentPlayingIndex;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Unified Player Example</Text>
 
       <UnifiedPlayerView
         ref={playerRef}
-        videoUrl={videoUrl}
-        thumbnailUrl={thumbnailUrl} // Add thumbnail URL prop
+        videoUrl={currentVideoSource} // Use the state variable for source
+        thumbnailUrl={isPlaylistMode ? undefined : thumbnailUrl} // Thumbnail only for single video
         autoplay={autoplay}
-        loop={loop}
+        loop={loop} // Loop prop is now primarily for JS logic
         isPaused={isPaused}
         style={styles.player}
         // Add all event handlers
@@ -536,7 +542,17 @@ function App(): React.JSX.Element {
       />
 
       <View style={styles.controls}>
-        <Text style={styles.currentUrlText}>Current URL: {videoUrl}</Text>
+        <Text style={styles.currentUrlText}>
+          Mode: {isPlaylistMode ? 'Playlist' : 'Single Video'}
+          {isPlaylistMode &&
+            ` (Item ${displayedIndex + 1}/${playlistUrls.length})`}
+        </Text>
+        <Text style={styles.currentUrlText}>
+          Source:{' '}
+          {typeof currentVideoSource === 'string'
+            ? currentVideoSource
+            : `Playlist (${playlistUrls.length} videos)`}
+        </Text>
         <Text style={styles.currentUrlText}>
           Progress: {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
         </Text>
@@ -597,6 +613,24 @@ function App(): React.JSX.Element {
           </TouchableOpacity>
         </View>
 
+        {/* Toggle Playlist Mode */}
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => {
+              const nextIsPlaylist = !isPlaylistMode;
+              setIsPlaylistMode(nextIsPlaylist);
+              // Reset index only when toggling mode
+              setCurrentPlayingIndex(0);
+              // Let useEffect handle setting the correct source
+            }}
+          >
+            <Text style={styles.buttonText}>
+              {isPlaylistMode ? 'Switch to Single Video' : 'Switch to Playlist'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Add Capture Button */}
         <View style={styles.buttonRow}>
           <TouchableOpacity style={styles.button} onPress={handleCapture}>
@@ -648,7 +682,6 @@ function App(): React.JSX.Element {
                     // Check if the file exists (for debugging purposes)
                     if (Platform.OS === 'android') {
                       // Format the file path correctly for Android
-                      // If the path doesn't start with file://, add it
                       let formattedPath = recordedVideoPath;
                       if (!formattedPath.startsWith('file://')) {
                         formattedPath = `file://${formattedPath}`;
@@ -659,17 +692,17 @@ function App(): React.JSX.Element {
                       // Reset player state before loading new URL
                       setIsPlayerReady(false);
                       setProgressEventsReceived(false);
+                      setIsPlaylistMode(false); // Ensure we are in single video mode
+                      setCurrentPlayingIndex(0);
 
                       // Reset the player to the original video first
-                      setVideoUrl(
-                        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
-                      );
+                      setCurrentVideoSource(singleVideoUrl);
 
                       // Wait a moment before trying to play the recorded video
                       setTimeout(() => {
                         console.log('Now trying to play recorded video...');
                         // Update the video URL to the recorded video path
-                        setVideoUrl(formattedPath);
+                        setCurrentVideoSource(formattedPath);
 
                         // Alert the user that we're trying to play the video
                         Alert.alert(
@@ -694,9 +727,9 @@ function App(): React.JSX.Element {
                 style={styles.button}
                 onPress={() => {
                   // Reset to the original video
-                  setVideoUrl(
-                    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
-                  );
+                  setIsPlaylistMode(false);
+                  setCurrentPlayingIndex(0);
+                  setCurrentVideoSource(singleVideoUrl);
                   Alert.alert('Reset', 'Player reset to original video');
                 }}
               >

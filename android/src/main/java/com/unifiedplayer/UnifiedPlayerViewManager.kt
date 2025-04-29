@@ -6,6 +6,8 @@ import com.facebook.react.uimanager.annotations.ReactProp
 import com.facebook.react.common.MapBuilder
 import android.util.Log
 import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.bridge.Dynamic // Import Dynamic
+import com.facebook.react.bridge.ReadableType // Import ReadableType
 import com.facebook.react.uimanager.events.RCTEventEmitter
 
 class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
@@ -19,8 +21,38 @@ class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
   }
 
   @ReactProp(name = "videoUrl")
-  fun setVideoUrl(view: UnifiedPlayerView, url: String?) {
-    view.setVideoUrl(url)
+  fun setVideoUrl(view: UnifiedPlayerView, videoUrl: Dynamic?) {
+    if (videoUrl == null) {
+      view.setVideoUrl(null)
+      return
+    }
+
+    when (videoUrl.type) {
+      ReadableType.String -> {
+        view.setVideoUrl(videoUrl.asString())
+      }
+      ReadableType.Array -> {
+        val urlList = mutableListOf<String>()
+        val array = videoUrl.asArray()
+        for (i in 0 until array.size()) {
+          if (array.getType(i) == ReadableType.String) {
+            val urlString = array.getString(i) // Get nullable string
+            if (urlString != null) { // Check if it's not null
+                 urlList.add(urlString) // Add the non-null string
+            } else {
+                 Log.w(TAG, "Null string found in videoUrl array at index $i.")
+            }
+          } else {
+            Log.w(TAG, "Invalid type in videoUrl array at index $i. Expected String.")
+          }
+        }
+        view.setVideoUrls(urlList) // Call the new method for playlists
+      }
+      else -> {
+        Log.w(TAG, "Invalid type for videoUrl prop. Expected String or Array.")
+        view.setVideoUrl(null) // Or handle error appropriately
+      }
+    }
   }
 
   @ReactProp(name = "thumbnailUrl")

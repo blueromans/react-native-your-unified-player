@@ -24,8 +24,8 @@ if (
 
 // Define the props for the UnifiedPlayerView component
 export type UnifiedPlayerProps = {
-  // Video source URL
-  videoUrl: string;
+  // Video source URL or list of URLs for playlist
+  videoUrl: string | string[];
 
   // Thumbnail image URL to display until video starts playing
   thumbnailUrl?: string;
@@ -42,8 +42,8 @@ export type UnifiedPlayerProps = {
   // Is the player currently paused
   isPaused?: boolean;
 
-  // Callback when video begins loading
-  onLoadStart?: () => void;
+  // Callback when video begins loading (includes index for playlists)
+  onLoadStart?: (event: { nativeEvent?: { index?: number } }) => void;
 
   // Callback when video is ready to play
   onReadyToPlay?: () => void;
