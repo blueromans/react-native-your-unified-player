@@ -2,6 +2,8 @@ package com.unifiedplayer
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -13,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.View
+import android.view.Surface
 import android.widget.FrameLayout
 import android.widget.ImageView
 import com.bumptech.glide.Glide
@@ -35,7 +38,6 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
-import android.view.Surface
 import java.nio.ByteBuffer
 import android.os.Environment
 import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_COMPLETE
@@ -47,6 +49,10 @@ import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_PROGRESS
 import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_READY
 import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_RESUMED
 import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_STALLED
+import com.unifiedplayer.UnifiedPlayerEventEmitter.Companion.EVENT_FULLSCREEN_CHANGED
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.os.Build
 
 class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     // Recording related variables
@@ -75,6 +81,13 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     internal var player: ExoPlayer? = null
     private var currentProgress = 0
     private var isPaused = false
+    private var isFullscreen = false
+    private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    private var originalSystemUiVisibility: Int = 0
+    private var originalLayoutParams: ViewGroup.LayoutParams? = null
+    private var originalParent: ViewGroup? = null
+    private var originalIndex: Int = 0
+    private var fullscreenContainer: ViewGroup? = null
 
     private val progressHandler = Handler(Looper.getMainLooper())
     private val progressRunnable: Runnable = object : Runnable {
@@ -406,6 +419,89 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         }
     }
 
+    fun setIsFullscreen(fullscreen: Boolean) {
+        Log.d(TAG, "setIsFullscreen called with value: $fullscreen")
+        if (this.isFullscreen == fullscreen) {
+            return // Already in the requested state
+        }
+
+        this.isFullscreen = fullscreen
+        val reactContext = context as? ReactContext ?: return
+        val activity = reactContext.currentActivity ?: return
+
+        if (fullscreen) {
+            enterFullscreen(activity)
+        } else {
+            exitFullscreen(activity)
+        }
+
+        // Send event about fullscreen state change
+        val event = Arguments.createMap()
+        event.putBoolean("isFullscreen", fullscreen)
+        sendEvent(EVENT_FULLSCREEN_CHANGED, event)
+    }
+
+    private fun enterFullscreen(activity: Activity) {
+        Log.d(TAG, "Entering fullscreen mode")
+
+        // Save current orientation
+        originalOrientation = activity.requestedOrientation
+
+        // Force landscape orientation
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+        // Hide system UI for fullscreen
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            activity.window.insetsController?.let { controller ->
+                controller.hide(android.view.WindowInsets.Type.statusBars())
+                controller.hide(android.view.WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            originalSystemUiVisibility = activity.window.decorView.systemUiVisibility
+            @Suppress("DEPRECATION")
+            activity.window.decorView.systemUiVisibility = (
+                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            )
+        }
+
+        // Add FLAG_KEEP_SCREEN_ON to prevent screen from turning off during playback
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Simply inform React Native that we want fullscreen
+        // The React Native side should handle hiding other UI elements
+        Log.d(TAG, "Fullscreen mode activated - orientation changed to landscape")
+    }
+
+    private fun exitFullscreen(activity: Activity) {
+        Log.d(TAG, "Exiting fullscreen mode")
+
+        // Force back to portrait orientation
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+
+        // Restore system UI
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            activity.window.insetsController?.let { controller ->
+                controller.show(android.view.WindowInsets.Type.statusBars())
+                controller.show(android.view.WindowInsets.Type.navigationBars())
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            activity.window.decorView.systemUiVisibility = originalSystemUiVisibility
+        }
+
+        // Remove FLAG_KEEP_SCREEN_ON
+        activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        Log.d(TAG, "Fullscreen mode exited - orientation restored")
+    }
+
     fun play() {
         Log.d(TAG, "Play method called")
         player?.playWhenReady = true
@@ -472,6 +568,7 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
                 EVENT_PLAYING -> "topPlaying"
                 EVENT_PAUSED -> "topPlaybackPaused"
                 EVENT_LOAD_START -> "topLoadStart"
+                EVENT_FULLSCREEN_CHANGED -> "topFullscreenChanged"
                 else -> "top${eventName.substring(2)}" // Fallback for any other events
             }
             

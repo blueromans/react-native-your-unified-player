@@ -26,7 +26,7 @@ const playlistUrls = [
 ];
 
 const singleVideoUrl =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+  'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4';
 const singleThumbnailUrl =
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg';
 
@@ -40,6 +40,7 @@ function App(): React.JSX.Element {
   const [autoplay, setAutoplay] = useState(true);
   const [loop, setLoop] = useState(false); // Loop prop controls native looping for single video OR playlist looping in JS
   const [isPaused, setIsPaused] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState(0); // Track playlist index
@@ -240,6 +241,30 @@ function App(): React.JSX.Element {
 
   const handlePaused = () => {
     console.log(`Event: ${UnifiedPlayerEventTypes.PAUSED}`);
+  };
+
+  const handleFullscreenChanged = (event: {
+    nativeEvent: { isFullscreen: boolean };
+  }) => {
+    console.log('Fullscreen state changed:', event.nativeEvent.isFullscreen);
+    setIsFullscreen(event.nativeEvent.isFullscreen);
+  };
+
+  const handleToggleFullscreen = () => {
+    const viewTag = getPlayerViewTag();
+    if (viewTag !== null) {
+      const newFullscreenState = !isFullscreen;
+      console.log('Toggling fullscreen to:', newFullscreenState);
+      UnifiedPlayer.toggleFullscreen(viewTag, newFullscreenState)
+        .then(() => {
+          console.log('Fullscreen toggled successfully');
+          setIsFullscreen(newFullscreenState);
+        })
+        .catch((error) => {
+          console.error('Error toggling fullscreen:', error);
+          Alert.alert('Fullscreen Error', String(error));
+        });
+    }
   };
 
   // --- Capture Logic ---
@@ -518,244 +543,315 @@ function App(): React.JSX.Element {
   const displayedIndex = currentPlayingIndex;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Unified Player Example</Text>
+    <View style={styles.flexContainer}>
+      {!isFullscreen ? (
+        <ScrollView contentContainerStyle={styles.container}>
+          <Text style={styles.title}>Unified Player Example</Text>
 
-      <UnifiedPlayerView
-        ref={playerRef}
-        videoUrl={currentVideoSource} // Use the state variable for source
-        thumbnailUrl={isPlaylistMode ? undefined : thumbnailUrl} // Thumbnail only for single video
-        autoplay={autoplay}
-        loop={loop} // Loop prop is now primarily for JS logic
-        isPaused={isPaused}
-        style={styles.player}
-        // Add all event handlers
-        onLoadStart={handleLoadStart}
-        onReadyToPlay={handleReadyToPlay}
-        onError={handleError}
-        onProgress={handleProgress}
-        onPlaybackComplete={handlePlaybackComplete}
-        onPlaybackStalled={handlePlaybackStalled}
-        onPlaybackResumed={handlePlaybackResumed}
-        onPlaying={handlePlaying}
-        onPaused={handlePaused}
-      />
+          <UnifiedPlayerView
+            ref={playerRef}
+            videoUrl={currentVideoSource} // Use the state variable for source
+            thumbnailUrl={isPlaylistMode ? undefined : thumbnailUrl} // Thumbnail only for single video
+            autoplay={autoplay}
+            loop={loop} // Loop prop is now primarily for JS logic
+            isPaused={isPaused}
+            isFullscreen={isFullscreen}
+            style={styles.player}
+            // Add all event handlers
+            onLoadStart={handleLoadStart}
+            onReadyToPlay={handleReadyToPlay}
+            onError={handleError}
+            onProgress={handleProgress}
+            onPlaybackComplete={handlePlaybackComplete}
+            onPlaybackStalled={handlePlaybackStalled}
+            onPlaybackResumed={handlePlaybackResumed}
+            onPlaying={handlePlaying}
+            onPaused={handlePaused}
+            onFullscreenChanged={handleFullscreenChanged}
+          />
 
-      <View style={styles.controls}>
-        <Text style={styles.currentUrlText}>
-          Mode: {isPlaylistMode ? 'Playlist' : 'Single Video'}
-          {isPlaylistMode &&
-            ` (Item ${displayedIndex + 1}/${playlistUrls.length})`}
-        </Text>
-        <Text style={styles.currentUrlText}>
-          Source:{' '}
-          {typeof currentVideoSource === 'string'
-            ? currentVideoSource
-            : `Playlist (${playlistUrls.length} videos)`}
-        </Text>
-        <Text style={styles.currentUrlText}>
-          Progress: {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
-        </Text>
-        <Text style={styles.statusText}>
-          Player Status: {isPlayerReady ? 'Ready' : 'Not Ready'} | Progress
-          Events: {progressEventsReceived ? 'Receiving' : 'Not Receiving'}
-        </Text>
-
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.button} onPress={handlePlay}>
-            <Text style={styles.buttonText}>Play</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={handlePause}>
-            <Text style={styles.buttonText}>Pause</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => handleSeekTo(10)}
-          >
-            <Text style={styles.buttonText}>Seek to 10s</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={handleAutoplayToggle}
-          >
-            <Text style={styles.buttonText}>
-              Autoplay: {autoplay ? 'ON' : 'OFF'}
+          <View style={styles.controls}>
+            <Text style={styles.currentUrlText}>
+              Mode: {isPlaylistMode ? 'Playlist' : 'Single Video'}
+              {isPlaylistMode &&
+                ` (Item ${displayedIndex + 1}/${playlistUrls.length})`}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={handleLoopToggle}>
-            <Text style={styles.buttonText}>Loop: {loop ? 'ON' : 'OFF'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={handlePauseToggle}>
-            <Text style={styles.buttonText}>
-              Paused: {isPaused ? 'ON' : 'OFF'}
+            <Text style={styles.currentUrlText}>
+              Source:{' '}
+              {typeof currentVideoSource === 'string'
+                ? currentVideoSource
+                : `Playlist (${playlistUrls.length} videos)`}
             </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={handleGetCurrentTime}
-          >
-            <Text style={styles.buttonText}>Get Current Time</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={handleGetDuration}>
-            <Text style={styles.buttonText}>Get Duration</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.button} onPress={reinitializePlayer}>
-            <Text style={styles.buttonText}>Reinitialize Player</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Toggle Playlist Mode */}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => {
-              const nextIsPlaylist = !isPlaylistMode;
-              setIsPlaylistMode(nextIsPlaylist);
-              // Reset index only when toggling mode
-              setCurrentPlayingIndex(0);
-              // Let useEffect handle setting the correct source
-            }}
-          >
-            <Text style={styles.buttonText}>
-              {isPlaylistMode ? 'Switch to Single Video' : 'Switch to Playlist'}
+            <Text style={styles.currentUrlText}>
+              Progress: {currentTime.toFixed(2)}s / {duration.toFixed(2)}s
             </Text>
-          </TouchableOpacity>
-        </View>
+            <Text style={styles.statusText}>
+              Player Status: {isPlayerReady ? 'Ready' : 'Not Ready'} | Progress
+              Events: {progressEventsReceived ? 'Receiving' : 'Not Receiving'}
+            </Text>
 
-        {/* Add Capture Button */}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.button} onPress={handleCapture}>
-            <Text style={styles.buttonText}>Capture Frame</Text>
-          </TouchableOpacity>
-        </View>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.button} onPress={handlePlay}>
+                <Text style={styles.buttonText}>Play</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.button} onPress={handlePause}>
+                <Text style={styles.buttonText}>Pause</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => handleSeekTo(10)}
+              >
+                <Text style={styles.buttonText}>Seek to 10s</Text>
+              </TouchableOpacity>
+            </View>
 
-        {/* Add Recording Buttons */}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.button, isRecording ? styles.recordingButton : null]}
-            onPress={handleStartRecording}
-            disabled={isRecording}
-          >
-            <Text style={styles.buttonText}>Start Recording</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={handleStopRecording}
-            disabled={!isRecording}
-          >
-            <Text style={styles.buttonText}>Stop Recording</Text>
-          </TouchableOpacity>
-        </View>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.button, isFullscreen && styles.activeButton]}
+                onPress={handleToggleFullscreen}
+              >
+                <Text style={styles.buttonText}>
+                  {isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-        {/* Display Recording Status */}
-        {isRecording && (
-          <View style={styles.recordingStatus}>
-            <Text style={styles.recordingText}>Recording in progress...</Text>
-          </View>
-        )}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleAutoplayToggle}
+              >
+                <Text style={styles.buttonText}>
+                  Autoplay: {autoplay ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleLoopToggle}
+              >
+                <Text style={styles.buttonText}>
+                  Loop: {loop ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handlePauseToggle}
+              >
+                <Text style={styles.buttonText}>
+                  Paused: {isPaused ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-        {/* Display Recorded Video Path and Play Button */}
-        {recordedVideoPath && !isRecording && (
-          <View style={styles.captureContainer}>
-            <Text style={styles.captureTitle}>Recording Saved:</Text>
-            <Text style={styles.recordingPath}>{recordedVideoPath}</Text>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleGetCurrentTime}
+              >
+                <Text style={styles.buttonText}>Get Current Time</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleGetDuration}
+              >
+                <Text style={styles.buttonText}>Get Duration</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={reinitializePlayer}
+              >
+                <Text style={styles.buttonText}>Reinitialize Player</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Toggle Playlist Mode */}
             <View style={styles.buttonRow}>
               <TouchableOpacity
                 style={styles.button}
                 onPress={() => {
-                  try {
-                    // Log the file path for debugging
-                    console.log(
-                      'Attempting to play recorded video from path:',
-                      recordedVideoPath
-                    );
-
-                    // Check if the file exists (for debugging purposes)
-                    if (Platform.OS === 'android') {
-                      // Format the file path correctly for Android
-                      let formattedPath = recordedVideoPath;
-                      if (!formattedPath.startsWith('file://')) {
-                        formattedPath = `file://${formattedPath}`;
-                      }
-
-                      console.log('Formatted path:', formattedPath);
-
-                      // Reset player state before loading new URL
-                      setIsPlayerReady(false);
-                      setProgressEventsReceived(false);
-                      setIsPlaylistMode(false); // Ensure we are in single video mode
-                      setCurrentPlayingIndex(0);
-
-                      // Reset the player to the original video first
-                      setCurrentVideoSource(singleVideoUrl);
-
-                      // Wait a moment before trying to play the recorded video
-                      setTimeout(() => {
-                        console.log('Now trying to play recorded video...');
-                        // Update the video URL to the recorded video path
-                        setCurrentVideoSource(formattedPath);
-
-                        // Alert the user that we're trying to play the video
-                        Alert.alert(
-                          'Loading Video',
-                          'Attempting to play the recorded video...'
-                        );
-                      }, 1000);
-                    }
-                  } catch (error) {
-                    console.error('Error playing recorded video:', error);
-                    Alert.alert(
-                      'Playback Error',
-                      `Failed to play recorded video: ${error}`
-                    );
-                  }
-                }}
-              >
-                <Text style={styles.buttonText}>Play Recorded Video</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.button}
-                onPress={() => {
-                  // Reset to the original video
-                  setIsPlaylistMode(false);
+                  const nextIsPlaylist = !isPlaylistMode;
+                  setIsPlaylistMode(nextIsPlaylist);
+                  // Reset index only when toggling mode
                   setCurrentPlayingIndex(0);
-                  setCurrentVideoSource(singleVideoUrl);
-                  Alert.alert('Reset', 'Player reset to original video');
+                  // Let useEffect handle setting the correct source
                 }}
               >
-                <Text style={styles.buttonText}>Reset Player</Text>
+                <Text style={styles.buttonText}>
+                  {isPlaylistMode
+                    ? 'Switch to Single Video'
+                    : 'Switch to Playlist'}
+                </Text>
               </TouchableOpacity>
             </View>
-          </View>
-        )}
 
-        {/* Display Captured Image */}
-        {capturedImage && (
-          <View style={styles.captureContainer}>
-            <Text style={styles.captureTitle}>Captured Frame:</Text>
-            <Image
-              source={{ uri: capturedImage }}
-              style={styles.capturedImage}
-              resizeMode="contain"
-            />
+            {/* Add Capture Button */}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.button} onPress={handleCapture}>
+                <Text style={styles.buttonText}>Capture Frame</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Add Recording Buttons */}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  isRecording ? styles.recordingButton : null,
+                ]}
+                onPress={handleStartRecording}
+                disabled={isRecording}
+              >
+                <Text style={styles.buttonText}>Start Recording</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleStopRecording}
+                disabled={!isRecording}
+              >
+                <Text style={styles.buttonText}>Stop Recording</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Display Recording Status */}
+            {isRecording && (
+              <View style={styles.recordingStatus}>
+                <Text style={styles.recordingText}>
+                  Recording in progress...
+                </Text>
+              </View>
+            )}
+
+            {/* Display Recorded Video Path and Play Button */}
+            {recordedVideoPath && !isRecording && (
+              <View style={styles.captureContainer}>
+                <Text style={styles.captureTitle}>Recording Saved:</Text>
+                <Text style={styles.recordingPath}>{recordedVideoPath}</Text>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={() => {
+                      try {
+                        // Log the file path for debugging
+                        console.log(
+                          'Attempting to play recorded video from path:',
+                          recordedVideoPath
+                        );
+
+                        // Check if the file exists (for debugging purposes)
+                        if (Platform.OS === 'android') {
+                          // Format the file path correctly for Android
+                          let formattedPath = recordedVideoPath;
+                          if (!formattedPath.startsWith('file://')) {
+                            formattedPath = `file://${formattedPath}`;
+                          }
+
+                          console.log('Formatted path:', formattedPath);
+
+                          // Reset player state before loading new URL
+                          setIsPlayerReady(false);
+                          setProgressEventsReceived(false);
+                          setIsPlaylistMode(false); // Ensure we are in single video mode
+                          setCurrentPlayingIndex(0);
+
+                          // Reset the player to the original video first
+                          setCurrentVideoSource(singleVideoUrl);
+
+                          // Wait a moment before trying to play the recorded video
+                          setTimeout(() => {
+                            console.log('Now trying to play recorded video...');
+                            // Update the video URL to the recorded video path
+                            setCurrentVideoSource(formattedPath);
+
+                            // Alert the user that we're trying to play the video
+                            Alert.alert(
+                              'Loading Video',
+                              'Attempting to play the recorded video...'
+                            );
+                          }, 1000);
+                        }
+                      } catch (error) {
+                        console.error('Error playing recorded video:', error);
+                        Alert.alert(
+                          'Playback Error',
+                          `Failed to play recorded video: ${error}`
+                        );
+                      }
+                    }}
+                  >
+                    <Text style={styles.buttonText}>Play Recorded Video</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={() => {
+                      // Reset to the original video
+                      setIsPlaylistMode(false);
+                      setCurrentPlayingIndex(0);
+                      setCurrentVideoSource(singleVideoUrl);
+                      Alert.alert('Reset', 'Player reset to original video');
+                    }}
+                  >
+                    <Text style={styles.buttonText}>Reset Player</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Display Captured Image */}
+            {capturedImage && (
+              <View style={styles.captureContainer}>
+                <Text style={styles.captureTitle}>Captured Frame:</Text>
+                <Image
+                  source={{ uri: capturedImage }}
+                  style={styles.capturedImage}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
           </View>
-        )}
-      </View>
-    </ScrollView>
+        </ScrollView>
+      ) : (
+        <>
+          <UnifiedPlayerView
+            ref={playerRef}
+            videoUrl={currentVideoSource}
+            thumbnailUrl={isPlaylistMode ? undefined : thumbnailUrl}
+            autoplay={autoplay}
+            loop={loop}
+            isPaused={isPaused}
+            isFullscreen={isFullscreen}
+            style={styles.fullscreenPlayer}
+            onLoadStart={handleLoadStart}
+            onReadyToPlay={handleReadyToPlay}
+            onError={handleError}
+            onProgress={handleProgress}
+            onPlaybackComplete={handlePlaybackComplete}
+            onPlaybackStalled={handlePlaybackStalled}
+            onPlaybackResumed={handlePlaybackResumed}
+            onPlaying={handlePlaying}
+            onPaused={handlePaused}
+            onFullscreenChanged={handleFullscreenChanged}
+          />
+          <TouchableOpacity
+            style={styles.exitFullscreenButton}
+            onPress={handleToggleFullscreen}
+          >
+            <Text style={styles.exitFullscreenButtonText}>✕</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  flexContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
   container: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -774,6 +870,16 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9, // Standard video aspect ratio
     backgroundColor: 'black',
     marginBottom: 20,
+  },
+  fullscreenPlayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000',
   },
   controls: {
     width: '90%',
@@ -841,6 +947,26 @@ const styles = StyleSheet.create({
   },
   recordingButton: {
     backgroundColor: '#dc3545', // Red color for recording
+  },
+  activeButton: {
+    backgroundColor: '#28a745', // Green color for active state
+  },
+  exitFullscreenButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    width: 40,
+    height: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  exitFullscreenButtonText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
   recordingStatus: {
     marginTop: 10,

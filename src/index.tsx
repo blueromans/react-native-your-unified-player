@@ -68,6 +68,12 @@ export type UnifiedPlayerProps = {
 
   // Callback when playback is playing
   onPlaying?: () => void;
+
+  // Fullscreen mode - automatically rotates to landscape when true
+  isFullscreen?: boolean;
+
+  // Callback when fullscreen state changes
+  onFullscreenChanged?: (isFullscreen: boolean) => void;
 };
 
 // Native component registration
@@ -291,6 +297,44 @@ export const UnifiedPlayer = {
     } catch (error) {
       console.log(
         'Error calling startRecording:',
+        error instanceof Error ? error.message : String(error)
+      );
+      return Promise.reject(error);
+    }
+  },
+
+  /**
+   * Toggle fullscreen mode
+   * @param viewTag - The tag of the player view
+   * @param isFullscreen - Whether to enter or exit fullscreen mode
+   * @returns Promise resolving to true if successful
+   */
+  toggleFullscreen: (
+    viewTag: number,
+    isFullscreen: boolean
+  ): Promise<boolean> => {
+    try {
+      console.log(
+        'UnifiedPlayer.toggleFullscreen called with viewTag:',
+        viewTag,
+        'isFullscreen:',
+        isFullscreen
+      );
+      return UnifiedPlayerModule.toggleFullscreen(viewTag, isFullscreen)
+        .then((result: boolean) => {
+          console.log('Native toggleFullscreen method called successfully');
+          return result;
+        })
+        .catch((error: any) => {
+          console.log(
+            'Error calling toggleFullscreen:',
+            error instanceof Error ? error.message : String(error)
+          );
+          throw error;
+        });
+    } catch (error) {
+      console.log(
+        'Error calling toggleFullscreen:',
         error instanceof Error ? error.message : String(error)
       );
       return Promise.reject(error);

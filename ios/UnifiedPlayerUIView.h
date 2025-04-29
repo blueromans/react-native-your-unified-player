@@ -18,6 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) BOOL autoplay;
 @property (nonatomic, assign) BOOL loop;
 @property (nonatomic, assign) BOOL isPaused;
+@property (nonatomic, assign) BOOL isFullscreen;
 @property (nonatomic, strong) NSArray *mediaOptions;
 @property (nonatomic, weak) RCTBridge *bridge;
 @property (nonatomic, assign) VLCMediaPlayerState previousState;
@@ -41,8 +42,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) RCTDirectEventBlock onPlaybackResumed;
 @property (nonatomic, copy) RCTDirectEventBlock onPlaying;
 @property (nonatomic, copy) RCTDirectEventBlock onPaused;
+@property (nonatomic, copy) RCTDirectEventBlock onFullscreenChanged;
 
 // Method declarations
+- (void)toggleFullscreen:(BOOL)fullscreen;
 - (void)setupWithVideoUrlString:(nullable NSString *)videoUrlString;
 - (void)setupWithVideoUrlArray:(NSArray<NSString *> *)urlArray; // New method for playlists
 - (void)setupThumbnailWithUrlString:(nullable NSString *)thumbnailUrlString;

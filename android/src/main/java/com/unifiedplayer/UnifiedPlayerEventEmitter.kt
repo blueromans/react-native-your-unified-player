@@ -21,7 +21,8 @@ class UnifiedPlayerEventEmitter(private val reactContext: ReactApplicationContex
         const val EVENT_RESUMED = "onPlaybackResumed"
         const val EVENT_PLAYING = "onPlaying"
         const val EVENT_PAUSED = "onPaused"
-        
+        const val EVENT_FULLSCREEN_CHANGED = "onFullscreenChanged"
+
         // Singleton instance for access from other classes
         private var instance: UnifiedPlayerEventEmitter? = null
         

@@ -239,6 +239,32 @@ class UnifiedPlayerModule(private val reactContext: ReactApplicationContext) : R
     }
     
     @ReactMethod
+    fun toggleFullscreen(viewTag: Int, isFullscreen: Boolean, promise: Promise) {
+        Log.d(TAG, "Native toggleFullscreen method called with viewTag: $viewTag, isFullscreen: $isFullscreen")
+        try {
+            val playerView = getPlayerViewByTag(viewTag)
+            if (playerView != null) {
+                UiThreadUtil.runOnUiThread {
+                    try {
+                        playerView.setIsFullscreen(isFullscreen)
+                        Log.d(TAG, "toggleFullscreen executed successfully")
+                        promise.resolve(true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error toggling fullscreen: ${e.message}", e)
+                        promise.reject("FULLSCREEN_ERROR", "Error toggling fullscreen: ${e.message}", e)
+                    }
+                }
+            } else {
+                Log.e(TAG, "Player view not found for tag: $viewTag")
+                promise.reject("VIEW_NOT_FOUND", "Player view not found for tag: $viewTag")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in toggleFullscreen method: ${e.message}", e)
+            promise.reject("FULLSCREEN_ERROR", "Error in toggleFullscreen method: ${e.message}", e)
+        }
+    }
+
+    @ReactMethod
     fun stopRecording(viewTag: Int, promise: Promise) {
         Log.d(TAG, "Native stopRecording method called with viewTag: $viewTag")
         try {

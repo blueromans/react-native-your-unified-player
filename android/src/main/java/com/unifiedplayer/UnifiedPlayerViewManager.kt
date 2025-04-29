@@ -75,6 +75,11 @@ class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
     view.setIsPaused(isPaused)
   }
 
+  @ReactProp(name = "isFullscreen")
+  fun setIsFullscreen(view: UnifiedPlayerView, isFullscreen: Boolean) {
+    view.setIsFullscreen(isFullscreen)
+  }
+
 
   
   // Register direct events
@@ -92,6 +97,7 @@ class UnifiedPlayerViewManager : SimpleViewManager<UnifiedPlayerView>() {
       .put("topPlaybackPaused", MapBuilder.of("registrationName", "onPaused"))
       .put("topPlaying", MapBuilder.of("registrationName", "onPlaying"))
       .put("topLoadStart", MapBuilder.of("registrationName", "onLoadStart"))
+      .put("topFullscreenChanged", MapBuilder.of("registrationName", "onFullscreenChanged"))
       .build()
   }
 }

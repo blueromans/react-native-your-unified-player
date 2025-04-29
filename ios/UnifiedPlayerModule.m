@@ -248,6 +248,25 @@ RCT_EXPORT_METHOD(startRecording:(nonnull NSNumber *)reactTag
     }];
 }
 
+RCT_EXPORT_METHOD(toggleFullscreen:(nonnull NSNumber *)reactTag
+                  isFullscreen:(BOOL)isFullscreen
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, UIView *> *viewRegistry) {
+        UIView *view = viewRegistry[reactTag];
+        if (![view isKindOfClass:[UnifiedPlayerUIView class]]) {
+            RCTLogError(@"Invalid view returned from registry, expecting UnifiedPlayerUIView, got: %@", view);
+            reject(@"E_INVALID_VIEW", @"Expected UnifiedPlayerUIView", nil);
+            return;
+        }
+
+        UnifiedPlayerUIView *playerView = (UnifiedPlayerUIView *)view;
+        [playerView toggleFullscreen:isFullscreen];
+        resolve(@(YES));
+    }];
+}
+
 RCT_EXPORT_METHOD(stopRecording:(nonnull NSNumber *)reactTag
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)

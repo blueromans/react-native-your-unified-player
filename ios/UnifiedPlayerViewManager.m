@@ -14,6 +14,10 @@
 // Main player view implementation
 @implementation UnifiedPlayerUIView {
     UIImageView *_thumbnailImageView;
+    CGRect _originalFrame;
+    UIView *_originalSuperview;
+    NSUInteger _originalIndex;
+    UIView *_fullscreenContainer;
 }
 
 - (instancetype)init {
@@ -54,6 +58,7 @@
 
         _autoplay = YES;
         _loop = NO;
+        _isFullscreen = NO;
 
         // Add notification for app entering background
         [[NSNotificationCenter defaultCenter] addObserver:self
@@ -738,6 +743,132 @@
     }
 }
 
+- (void)setIsFullscreen:(BOOL)isFullscreen {
+    RCTLogInfo(@"[UnifiedPlayerViewManager] setIsFullscreen: %d", isFullscreen);
+    [self toggleFullscreen:isFullscreen];
+}
+
+- (void)toggleFullscreen:(BOOL)fullscreen {
+    if (_isFullscreen == fullscreen) {
+        return; // Already in the requested state
+    }
+
+    _isFullscreen = fullscreen;
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (fullscreen) {
+            [self enterFullscreen];
+        } else {
+            [self exitFullscreen];
+        }
+
+        // Send event about fullscreen state change
+        if (self.onFullscreenChanged) {
+            self.onFullscreenChanged(@{@"isFullscreen": @(fullscreen)});
+        }
+    });
+}
+
+- (void)enterFullscreen {
+    RCTLogInfo(@"[UnifiedPlayerViewManager] Entering fullscreen mode");
+
+    // Get the key window
+    UIWindow *keyWindow = [[UIApplication sharedApplication] keyWindow];
+    if (!keyWindow) {
+        RCTLogError(@"[UnifiedPlayerViewManager] Cannot find key window");
+        return;
+    }
+
+    // Save original frame and superview
+    _originalFrame = self.frame;
+    _originalSuperview = self.superview;
+    _originalIndex = [self.superview.subviews indexOfObject:self];
+
+    // Remove from current superview
+    [self removeFromSuperview];
+
+    // Add to window with fullscreen frame
+    CGRect fullscreenFrame = keyWindow.bounds;
+    self.frame = fullscreenFrame;
+    [keyWindow addSubview:self];
+
+    // Bring to front
+    [keyWindow bringSubviewToFront:self];
+
+    // Force landscape orientation
+    NSNumber *value = [NSNumber numberWithInt:UIInterfaceOrientationLandscapeRight];
+    [[UIDevice currentDevice] setValue:value forKey:@"orientation"];
+    [UIViewController attemptRotationToDeviceOrientation];
+
+    // Hide status bar
+    [[UIApplication sharedApplication] setStatusBarHidden:YES withAnimation:UIStatusBarAnimationSlide];
+
+    // Keep screen on during playback
+    [[UIApplication sharedApplication] setIdleTimerDisabled:YES];
+
+    // Set background color to black for better fullscreen experience
+    self.backgroundColor = [UIColor blackColor];
+
+    // Update player layout
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+
+    // Re-attach the drawable to ensure video continues playing
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (_player) {
+            // Reset the drawable to ensure the video surface is properly connected
+            _player.drawable = nil;
+            _player.drawable = self;
+            RCTLogInfo(@"[UnifiedPlayerViewManager] Re-attached drawable after entering fullscreen");
+        }
+    });
+}
+
+- (void)exitFullscreen {
+    RCTLogInfo(@"[UnifiedPlayerViewManager] Exiting fullscreen mode");
+
+    // Remove from window
+    [self removeFromSuperview];
+
+    // Restore to original superview
+    if (_originalSuperview) {
+        self.frame = _originalFrame;
+        if (_originalIndex < _originalSuperview.subviews.count) {
+            [_originalSuperview insertSubview:self atIndex:_originalIndex];
+        } else {
+            [_originalSuperview addSubview:self];
+        }
+    }
+
+    // Restore portrait orientation
+    NSNumber *value = [NSNumber numberWithInt:UIInterfaceOrientationPortrait];
+    [[UIDevice currentDevice] setValue:value forKey:@"orientation"];
+    [UIViewController attemptRotationToDeviceOrientation];
+
+    // Show status bar
+    [[UIApplication sharedApplication] setStatusBarHidden:NO withAnimation:UIStatusBarAnimationSlide];
+
+    // Allow screen to turn off
+    [[UIApplication sharedApplication] setIdleTimerDisabled:NO];
+
+    // Restore original background color
+    self.backgroundColor = [UIColor blackColor];
+
+    // Update player layout
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+
+    // Re-attach the drawable to ensure video continues playing
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (_player) {
+            // Reset the drawable to ensure the video surface is properly connected
+            _player.drawable = nil;
+            _player.drawable = self;
+            RCTLogInfo(@"[UnifiedPlayerViewManager] Re-attached drawable after exiting fullscreen");
+        }
+    });
+}
+
 
 #pragma mark - VLCMediaPlayerDelegate
 
@@ -1005,6 +1136,12 @@ RCT_CUSTOM_VIEW_PROPERTY(isPaused, BOOL, UnifiedPlayerUIView)
     view.isPaused = [RCTConvert BOOL:json];
 }
 
+// isFullscreen property
+RCT_CUSTOM_VIEW_PROPERTY(isFullscreen, BOOL, UnifiedPlayerUIView)
+{
+    view.isFullscreen = [RCTConvert BOOL:json];
+}
+
 // Event handlers
 RCT_EXPORT_VIEW_PROPERTY(onLoadStart, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onReadyToPlay, RCTDirectEventBlock);
@@ -1015,5 +1152,6 @@ RCT_EXPORT_VIEW_PROPERTY(onPlaybackStalled, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onPlaybackResumed, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onPlaying, RCTDirectEventBlock);
 RCT_EXPORT_VIEW_PROPERTY(onPaused, RCTDirectEventBlock);
+RCT_EXPORT_VIEW_PROPERTY(onFullscreenChanged, RCTDirectEventBlock);
 
 @end
