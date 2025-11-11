@@ -429,10 +429,15 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         val reactContext = context as? ReactContext ?: return
         val activity = reactContext.currentActivity ?: return
 
+        // Alternative approach: Override the manifest setting temporarily
         if (fullscreen) {
+            // Clear any portrait lock from manifest before entering fullscreen
+            overrideOrientationRestrictions(activity, true)
             enterFullscreen(activity)
         } else {
             exitFullscreen(activity)
+            // Restore portrait lock after exiting fullscreen
+            overrideOrientationRestrictions(activity, false)
         }
 
         // Send event about fullscreen state change
@@ -441,14 +446,37 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
         sendEvent(EVENT_FULLSCREEN_CHANGED, event)
     }
 
+    /**
+     * Override orientation restrictions from manifest
+     * This is a workaround for when android:screenOrientation="portrait" is set in manifest
+     */
+    private fun overrideOrientationRestrictions(activity: Activity, enableLandscape: Boolean) {
+        try {
+            if (enableLandscape) {
+                // First set to unspecified to clear any manifest restrictions
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                // Small delay to ensure the change takes effect
+                Handler(Looper.getMainLooper()).postDelayed({
+                    // Then set to sensor landscape
+                    activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                }, 50)
+            } else {
+                // Restore portrait orientation
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to override orientation restrictions: ${e.message}")
+        }
+    }
+
     private fun enterFullscreen(activity: Activity) {
         Log.d(TAG, "Entering fullscreen mode")
 
         // Save current orientation
         originalOrientation = activity.requestedOrientation
 
-        // Force landscape orientation
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        // Note: Orientation change is already handled by overrideOrientationRestrictions()
+        // in setIsFullscreen() before this method is called
 
         // Hide system UI for fullscreen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -482,8 +510,8 @@ class UnifiedPlayerView(context: Context) : FrameLayout(context) {
     private fun exitFullscreen(activity: Activity) {
         Log.d(TAG, "Exiting fullscreen mode")
 
-        // Force back to portrait orientation
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        // Note: Orientation restoration is already handled by overrideOrientationRestrictions()
+        // in setIsFullscreen() after this method is called
 
         // Restore system UI
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
