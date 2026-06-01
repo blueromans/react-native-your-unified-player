@@ -4371,22 +4371,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"brace-expansion@npm:^1.1.7":
-  version: 1.1.11
-  resolution: "brace-expansion@npm:1.1.11"
+"brace-expansion@npm:^1.1.13":
+  version: 1.1.15
+  resolution: "brace-expansion@npm:1.1.15"
   dependencies:
     balanced-match: ^1.0.0
     concat-map: 0.0.1
-  checksum: faf34a7bb0c3fcf4b59c7808bc5d2a96a40988addf2e7e09dfbb67a2251800e0d14cd2bfc1aa79174f2f5095c54ff27f46fb1289fe2d77dac755b5eb3434cc07
-  languageName: node
-  linkType: hard
-
-"brace-expansion@npm:^2.0.1":
-  version: 2.0.1
-  resolution: "brace-expansion@npm:2.0.1"
-  dependencies:
-    balanced-match: ^1.0.0
-  checksum: a61e7cd2e8a8505e9f0036b3b6108ba5e926b4b55089eeb5550cd04a471fe216c96d4fe7e4c7f995c728c554ae20ddfc4244cad10aef255e72b62930afd233d1
+  checksum: f2a950034e670523cc186da61aabe3beab74b1b8a7c74a756bf6b172dad1917312f255d9ec46906c9f0cab530868095d8c143918576930dd0e1323c3803850f1
   languageName: node
   linkType: hard
 
@@ -4396,6 +4387,15 @@ __metadata:
   dependencies:
     balanced-match: ^1.0.0
   checksum: c77a7a64aabf94b8d5913955adb4f36957917565374461355bb4276830c027a313d981f32410cea9e38f52573e7eb776d02fe05091c3a79a061958d97e4d2b43
+  languageName: node
+  linkType: hard
+
+"brace-expansion@npm:^2.0.3":
+  version: 2.1.1
+  resolution: "brace-expansion@npm:2.1.1"
+  dependencies:
+    balanced-match: ^1.0.0
+  checksum: 4681c533dc4e6c77b3ad795b38683d297fd03c739a17bfb2a338529fa7dcf4540683a79dcd662905f4c5b0db7cfda18daafcd18dd1bbf7c3b076fe0c9c3487eb
   languageName: node
   linkType: hard
 
@@ -12636,10 +12636,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tmp@npm:^0.2.4":
-  version: 0.2.5
-  resolution: "tmp@npm:0.2.5"
-  checksum: 9d18e58060114154939930457b9e198b34f9495bcc05a343bc0a0a29aa546d2c1c2b343dae05b87b17c8fde0af93ab7d8fe8574a8f6dc2cd8fd3f2ca1ad0d8e1
+"tmp@npm:^0.2.6":
+  version: 0.2.7
+  resolution: "tmp@npm:0.2.7"
+  checksum: 45dec2fc288ad368eeff7268cb6d5d33452c6d35f4f7d9b1b5e023409a141dab57a3c08b5f505daf3af6d69667a5f544fc1a5b6a27c6f9396a5a1b4002912f1c
   languageName: node
   linkType: hard
 
@@ -13065,12 +13065,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"uuid@npm:^7.0.3":
-  version: 7.0.3
-  resolution: "uuid@npm:7.0.3"
+"uuid@npm:^11.1.1":
+  version: 11.1.1
+  resolution: "uuid@npm:11.1.1"
   bin:
-    uuid: dist/bin/uuid
-  checksum: f5b7b5cc28accac68d5c083fd51cca64896639ebd4cca88c6cfb363801aaa83aa439c86dfc8446ea250a7a98d17afd2ad9e88d9d4958c79a412eccb93bae29de
+    uuid: dist/esm/bin/uuid
+  checksum: 1c1ea6ffc9fd02a343d77151734af65644ebf5bac733b59bdab85859cf793cf03ac8d60909fa19dcd2272e154b20734c464b667afd8bdac02b4da5e206079469
   languageName: node
   linkType: hard
 
